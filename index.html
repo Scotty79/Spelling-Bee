@@ -170,6 +170,13 @@ details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:
 .tw .w{font:700 1.4rem var(--display);min-width:6ch}
 .empty{text-align:center;padding:28px 12px;color:var(--muted)}
 .seg{display:flex;gap:8px;flex-wrap:wrap}
+.pill.timer{background:var(--accent-soft);border-color:transparent;color:var(--accent-deep)}
+.pill.timer .ic{width:1.1em;height:1.1em}
+.pad-wrap{display:flex;flex-direction:column;gap:12px;margin-bottom:4px}
+.pad{width:100%;height:min(46vh,300px);background:#fffdf7;border:2px solid var(--line);border-radius:22px;display:block;touch-action:none;cursor:crosshair;box-shadow:inset 0 0 0 1px rgba(0,0,0,.03)}
+.pad-tools{display:flex;gap:8px;flex-wrap:wrap}
+.shot{margin:12px 0 0;padding:8px;background:#fffdf7;border:2px solid var(--line);border-radius:18px}
+.shot img{display:block;width:100%;height:auto;border-radius:12px}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -181,6 +188,7 @@ details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
 
 <div id="app"></div>
@@ -297,10 +305,10 @@ function scoreMessage(s,n){
 
 /* ---------- app state ---------- */
 const $app=document.getElementById('app');
-const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),
+const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),game:'say',
   adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,addCat:'core',
   msg:null,save:'idle',saveErr:'',gen:null,canGen:false,focus:null};
-let R=null, DB=null, SAMPLE=null, SPK=0;
+let R=null, DB=null, SAMPLE=null, SPK=0, pad=null, timerIv=null;
 const LS_KEY='sbee.v1';
 
 /* per-device voice settings (voices differ on every device, so these stay in the browser) */
@@ -398,15 +406,44 @@ function speakSeq(parts,done){
 }
 function stopSpeech(){SPK++;if(synth) synth.cancel();}
 
+/* ---------- stopwatch (Write to Spell) ---------- */
+function fmtTime(ms){const s=Math.max(0,Math.round(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function startTimer(){stopTimer();R.tStart=Date.now();R.running=true;timerIv=setInterval(()=>{
+  if(!R||!R.running) return; R.time=Date.now()-R.tStart; const el=document.getElementById('timerval'); if(el) el.textContent=fmtTime(R.time);
+},200);}
+function stopTimer(){if(timerIv){clearInterval(timerIv);timerIv=null;}if(R&&R.running){R.time=Date.now()-R.tStart;R.running=false;}}
+
+/* ---------- handwriting canvas (finger or Apple Pencil) ---------- */
+function penW(){return Math.max(3,pad.c.clientWidth*0.012);}
+function fitPad(){const c=pad.c,dpr=Math.min(window.devicePixelRatio||1,3);c.width=Math.round(c.clientWidth*dpr);c.height=Math.round(c.clientHeight*dpr);pad.ctx.setTransform(dpr,0,0,dpr,0,0);}
+function redrawPad(){const x=pad.ctx,w=pad.c.clientWidth,h=pad.c.clientHeight;x.fillStyle='#fffdf7';x.fillRect(0,0,w,h);x.strokeStyle='#1b2240';x.lineWidth=penW();x.lineCap='round';x.lineJoin='round';
+  for(const st of pad.strokes){if(!st.length)continue;x.beginPath();x.moveTo(st[0][0]*w,st[0][1]*h);for(let i=1;i<st.length;i++)x.lineTo(st[i][0]*w,st[i][1]*h);if(st.length===1)x.lineTo(st[0][0]*w+0.01,st[0][1]*h);x.stroke();}}
+function drawSeg(){const st=pad.cur;if(!st||st.length<2)return;const x=pad.ctx,w=pad.c.clientWidth,h=pad.c.clientHeight,a=st[st.length-2],b=st[st.length-1];x.strokeStyle='#1b2240';x.lineWidth=penW();x.lineCap='round';x.lineJoin='round';x.beginPath();x.moveTo(a[0]*w,a[1]*h);x.lineTo(b[0]*w,b[1]*h);x.stroke();}
+function initPad(){
+  const c=document.getElementById('pad'); if(!c) return;
+  pad={c,ctx:c.getContext('2d'),strokes:R.strokes,cur:null};
+  fitPad(); redrawPad();
+  const pos=e=>{const r=c.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height];};
+  c.onpointerdown=e=>{e.preventDefault();try{c.setPointerCapture(e.pointerId);}catch(_){}pad.cur=[pos(e)];pad.strokes.push(pad.cur);};
+  c.onpointermove=e=>{if(!pad.cur)return;e.preventDefault();pad.cur.push(pos(e));drawSeg();};
+  const end=()=>{pad.cur=null;};
+  c.onpointerup=end;c.onpointercancel=end;c.onpointerleave=end;
+}
+
 /* ---------- helpers ---------- */
 const kid=()=>S.kids.find(k=>k.id===S.kidId);
 const aKid=()=>S.kids.find(k=>k.id===S.adminKid)||S.kids[0];
 const ic=(n,cls)=>'<svg class="ic '+(cls||'')+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
 const catLabel=id=>(CATS.find(c=>c.id===id)||{label:id}).label;
 const cur=()=>R.words[R.i];
+const GAMES={
+  say:{icon:'say',skin:'fill',title:'Say to Spell',sub:'hear the word, then spell it out loud',hint:'Turn the volume up and check the iPad isn’t on silent.'},
+  write:{icon:'pen',skin:'',title:'Write to Spell',sub:'hear the word, then write it on the screen',hint:'Write with a finger or an Apple Pencil, then a grown-up marks it.'}
+};
 function flash(t,k){S.msg={t,k:k||'ok'};}
 function go(screen){
   if(S.screen==='ask'||S.screen==='result') stopSpeech();
+  stopTimer();
   S.screen=screen; S.msg=null; S.editId=null; S.delId=null; S.delKid=null; render(); window.scrollTo(0,0);
 }
 
@@ -437,7 +474,7 @@ function viewKid(){
   return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="home">'+ic('back')+' Back</button></div>'+
   '<h1>Hi, '+esc(k.name)+'!</h1>'+
   '<button class="tile" data-game="say" data-act="game-say"><span class="tile-ic">'+ic('say','fill')+'</span><span><b>Say to Spell</b><small>Hear the word, then spell it out loud</small></span></button>'+
-  '<button class="tile" data-game="write" disabled><span class="tile-ic">'+ic('pen')+'</span><span><b>Write to Spell</b><small>Write the word on the screen</small></span><span class="soon">Coming soon</span></button>'+
+  '<button class="tile" data-game="write" data-act="game-write"><span class="tile-ic">'+ic('pen')+'</span><span><b>Write to Spell</b><small>Hear the word, then write it on the screen</small></span></button>'+
   '<button class="tile" data-game="beast" disabled><span class="tile-ic">'+ic('bolt','fill')+'</span><span><b>Beast Mode</b><small>Your tricky words, speaking and writing</small></span><span class="soon">Coming soon</span></button>'+
   '<button class="btn btn-ghost" data-act="tricky" style="align-self:flex-start">My tricky words'+(t?' ('+t+')':'')+'</button></div>';
 }
@@ -456,25 +493,44 @@ function viewTricky(){
 
 /* Game 1 */
 function viewSetup(){
-  const k=kid(), counts={}; CAT_IDS.forEach(id=>{counts[id]=k.words.filter(w=>w.c===id).length;});
+  const k=kid(), g=GAMES[S.game]||GAMES.say, counts={}; CAT_IDS.forEach(id=>{counts[id]=k.words.filter(w=>w.c===id).length;});
   const pool=k.words.filter(w=>S.bank.has(w.c)).length;
   const note=!pool?'Pick a bank that has words in it.':pool>=20?'20 words this round.':pool+' word'+(pool===1?'':'s')+' in these banks. Add more words to make a full 20.';
   return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="back-kid">'+ic('back')+' Back</button></div>'+
-  '<header class="gamehead">'+ic('say','fill huge')+'<div><h1>Say to Spell</h1><p class="muted">'+esc(k.name)+' · hear the word, then spell it out loud</p></div></header>'+
+  '<header class="gamehead">'+ic(g.icon,(g.skin?g.skin+' ':'')+'huge')+'<div><h1>'+g.title+'</h1><p class="muted">'+esc(k.name)+' · '+g.sub+'</p></div></header>'+
   '<fieldset class="banks"><legend>Which words today?</legend><div class="flex">'+CATS.map(c=>
     '<button class="chip" data-act="bank" data-id="'+c.id+'" aria-pressed="'+S.bank.has(c.id)+'"'+(counts[c.id]?'':' disabled')+'>'+c.label+' <small>'+counts[c.id]+'</small></button>').join('')+'</div></fieldset>'+
   '<p class="muted" aria-live="polite">'+note+'</p>'+
   '<button class="btn btn-primary block" data-act="start"'+(pool?'':' disabled')+'>Start</button>'+
-  '<p class="muted small">Turn the volume up and check the iPad isn’t on silent.</p></div>';
+  '<p class="muted small">'+g.hint+'</p></div>';
 }
 function gameBar(){
-  return '<div class="bar"><button class="iconbtn" data-act="quit">'+ic('back')+' Quit</button><span class="pill">Word '+(R.i+1)+' of '+R.n+'</span>'+
+  const timer=(R.game==='write'&&R.phase==='write')?'<span class="pill timer" aria-label="Time">'+ic('clock')+'<span id="timerval">'+fmtTime(R.time)+'</span></span>':'';
+  return '<div class="bar"><button class="iconbtn" data-act="quit">'+ic('back')+' Quit</button><span class="pill">Word '+(R.i+1)+' of '+R.n+'</span>'+timer+
   '<span class="pill score" role="status" aria-label="Score '+R.score+' out of '+R.n+'">Score '+R.score+'/'+R.n+'</span></div>';
 }
 function quitPanel(){
   return R.quit?'<section class="panel"><h3>Leave this round?</h3><div class="flex"><button class="btn btn-primary sm" data-act="quit-yes">Leave</button><button class="btn btn-ghost sm" data-act="quit-no">Keep going</button></div></section>':'';
 }
-function viewAsk(){
+function viewAsk(){ return R.game==='write'?viewAskWrite():viewAskSay(); }
+function viewAskWrite(){
+  const w=cur();
+  if(R.phase!=='write'){
+    return '<div class="wrap stack">'+gameBar()+quitPanel()+
+    '<section class="bubble" aria-live="polite">'+ic('pen','big')+'<div><p class="big-t">Listen…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div></div></section>'+
+    (!synth?'<p class="note err">This browser can’t read words aloud.</p>':'')+'</div>';
+  }
+  return '<div class="wrap stack">'+gameBar()+quitPanel()+
+  '<section class="bubble">'+ic('pen','big')+'<div><p class="big-t">Write the word!</p></div></section>'+
+  (!synth?'<p class="note err">This browser can’t read words aloud, so ask a grown-up to read the word, or tap “Show word”.</p>':'')+
+  '<section class="pad-wrap"><canvas id="pad" class="pad" aria-label="Writing area"></canvas>'+
+  '<div class="pad-tools"><button class="btn btn-ghost sm" data-act="hear">'+ic('speaker')+' Hear it again</button>'+
+  '<button class="btn btn-ghost sm" data-act="pad-undo">Undo</button><button class="btn btn-ghost sm" data-act="pad-clear">Clear</button>'+
+  '<button class="btn btn-ghost sm" data-act="reveal">'+ic('eye')+(R.reveal?' Hide word':' Show word (grown-up)')+'</button></div></section>'+
+  (R.reveal?'<section class="panel"><p class="revword">'+esc(w.w)+'</p>'+(w.s?'<p class="sentence">'+highlight(w.s,w.w)+'</p>':'')+'</section>':'')+
+  '<section class="panel"><h3>Grown-up: how did they do?</h3><div class="two"><button class="btn btn-good" data-act="right">'+ic('check')+' Got it right</button><button class="btn btn-warn" data-act="wrong">Not quite</button></div></section></div>';
+}
+function viewAskSay(){
   const w=cur();
   return '<div class="wrap stack">'+gameBar()+quitPanel()+
   '<section class="bubble" aria-live="polite">'+ic('say','fill big')+'<div>'+(R.speaking?
@@ -494,6 +550,7 @@ function viewResult(){
   (w.s&&!fw?'<p class="muted">The word is <mark>'+esc(w.w)+'</mark></p>':'')+
   (!ok?'<div class="letters" role="img" aria-label="'+esc([...w.w].join(' '))+'">'+[...w.w].map(l=>'<span>'+esc(l)+'</span>').join('')+'</div>':'')+
   (ok&&R.attempt>0?'<p class="muted">Nice retry! Retries don’t add to the score.</p>':'')+'</section>'+
+  (R.game==='write'?'<section class="panel"><div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>'+(R.shot?'<figure class="shot" style="margin:0"><img alt="What '+esc(kid().name)+' wrote" src="'+R.shot+'"></figure>':'')+'</section>':'')+
   '<div class="flex end">'+(ok?'':'<button class="btn btn-ghost" data-act="retry">Retry?</button>')+'<button class="btn btn-primary" data-act="next">Continue</button></div></div>';
 }
 function viewDone(){
@@ -591,7 +648,7 @@ function adminSettings(){
 
 function render(){
   const game=['setup','ask','result','done'].includes(S.screen)&&!S.loading&&!S.loadError;
-  if(game) $app.dataset.game='say'; else delete $app.dataset.game;
+  if(game) $app.dataset.game=(R&&R.game)||S.game||'say'; else delete $app.dataset.game;
   let h;
   if(S.loading) h=viewLoading();
   else if(S.loadError) h=viewLoadError();
@@ -603,25 +660,40 @@ function render(){
     }
   }
   $app.innerHTML=h;
+  if(S.screen==='ask'&&R&&R.game==='write'&&R.phase==='write') initPad();
   if(S.focus){const el=document.getElementById(S.focus);S.focus=null;if(el) el.focus();}
 }
 
-/* ---------- Game 1 flow ---------- */
+/* ---------- game flow (shared by Say and Write) ---------- */
 function startRound(){
   const k=kid(); const words=pickRound(k.words,S.bank,20); if(!words.length) return;
-  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[]};
-  S.screen='ask'; render(); window.scrollTo(0,0); speakCurrent();
+  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],
+     game:S.game,phase:null,time:0,shot:null,strokes:[]};
+  window.scrollTo(0,0); askCurrent();
+}
+function askCurrent(){
+  S.screen='ask';
+  if(R.game==='write') beginWriteWord();
+  else { render(); window.scrollTo(0,0); speakCurrent(); }
 }
 function speakCurrent(){
   const w=cur();
   if(!synth){R.speaking=false;R.reveal=true;render();return;}
   R.speaking=true; render();
   speakSeq([w.w,w.s,w.w].filter(Boolean),()=>{
-    if(R&&S.screen==='ask'&&cur()===w){R.speaking=false;render();}
+    if(R&&S.screen==='ask'&&R.game==='say'&&cur()===w){R.speaking=false;render();}
   });
 }
+function beginWriteWord(){
+  const w=cur(); R.phase='listen'; R.strokes=[]; R.shot=null; R.time=0; R.speaking=!!synth; render(); window.scrollTo(0,0);
+  const toWrite=()=>{ if(R&&S.screen==='ask'&&R.game==='write'&&cur()===w){ R.phase='write'; R.speaking=false; render(); startTimer(); } };
+  if(!synth){ toWrite(); return; }
+  speakSeq([w.w,w.s,w.w].filter(Boolean), toWrite);
+}
 function mark(ok){
-  stopSpeech(); const w=cur(), k=kid(); R.speaking=false;
+  stopSpeech();
+  if(R.game==='write'){ stopTimer(); R.shot=(pad&&pad.c)?pad.c.toDataURL('image/png'):null; }
+  const w=cur(), k=kid(); R.speaking=false;
   if(ok){if(R.attempt===0) R.score++; R.verdict='ok';}
   else{
     R.verdict='no'; const key=wordKey(w.w); k.tally[key]=(k.tally[key]||0)+1; queueSave(k);
@@ -632,11 +704,11 @@ function mark(ok){
 function nextWord(){
   R.i++; R.attempt=0; R.verdict=null; R.reveal=false; R.quit=false;
   if(R.i>=R.n){S.screen='done';render();window.scrollTo(0,0);return;}
-  S.screen='ask'; render(); window.scrollTo(0,0); speakCurrent();
+  askCurrent();
 }
 function retryWord(){
   R.attempt++; R.verdict=null; R.reveal=false; R.quit=false;
-  S.screen='ask'; render(); window.scrollTo(0,0); speakCurrent();
+  askCurrent();
 }
 
 /* ---------- sentences from Claude (optional, runs only on a tap) ---------- */
@@ -700,10 +772,13 @@ function act(a,t){
     case 'admin':S.adminKid=S.adminKid||(S.kids[0]&&S.kids[0].id);go('admin');break;
     case 'reload':initStore();break;
     case 'use-local':S.mode='local';S.loadError=null;S.kids=loadLocal();render();break;
-    case 'game-say':S.bank=new Set(CAT_IDS.filter(c=>kid().words.some(w=>w.c===c)));go('setup');break;
+    case 'game-say':S.game='say';S.bank=new Set(CAT_IDS.filter(c=>kid().words.some(w=>w.c===c)));go('setup');break;
+    case 'game-write':S.game='write';S.bank=new Set(CAT_IDS.filter(c=>kid().words.some(w=>w.c===c)));go('setup');break;
     case 'bank':if(S.bank.has(id)) S.bank.delete(id); else S.bank.add(id); render();break;
     case 'start':startRound();break;
-    case 'hear':speakCurrent();break;
+    case 'hear':if(R.game==='write'){speakSeq([cur().w,cur().s,cur().w].filter(Boolean));}else speakCurrent();break;
+    case 'pad-undo':if(pad){pad.strokes.pop();redrawPad();}break;
+    case 'pad-clear':if(pad){pad.strokes.length=0;redrawPad();}break;
     case 'reveal':R.reveal=!R.reveal;render();break;
     case 'right':mark(true);break;
     case 'wrong':mark(false);break;
@@ -779,6 +854,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(
 document.addEventListener('submit',e=>{const f=e.target.closest('form[data-form]');if(!f) return;e.preventDefault();form(f.dataset.form,f);});
 document.addEventListener('change',e=>{const t=e.target.closest('[data-change]');if(t) onChange(t.dataset.change,t);});
 if(synth&&synth.addEventListener) synth.addEventListener('voiceschanged',()=>{if(!S.loading&&S.screen==='admin'&&S.adminTab==='settings') render();});
+window.addEventListener('resize',()=>{if(pad&&pad.c&&document.getElementById('pad')===pad.c){fitPad();redrawPad();}});
 
 render();
 initStore();
