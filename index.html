@@ -438,8 +438,11 @@ const catLabel=id=>(CATS.find(c=>c.id===id)||{label:id}).label;
 const cur=()=>R.words[R.i];
 const GAMES={
   say:{icon:'say',skin:'fill',title:'Say to Spell',sub:'hear the word, then spell it out loud',hint:'Turn the volume up and check the iPad isn’t on silent.'},
-  write:{icon:'pen',skin:'',title:'Write to Spell',sub:'hear the word, then write it on the screen',hint:'Write with a finger or an Apple Pencil, then a grown-up marks it.'}
+  write:{icon:'pen',skin:'',title:'Write to Spell',sub:'hear the word, then write it on the screen',hint:'Write with a finger or an Apple Pencil, then a grown-up marks it.'},
+  beast:{icon:'bolt',skin:'fill',title:'Beast Mode',sub:'tricky words, speaking and writing',hint:'A surprise mix of speaking and writing, toughest words first.'}
 };
+/* current question type: for Beast Mode it varies per word, otherwise it's the game itself */
+const mode=()=> (R&&R.game==='beast') ? (R.modes[R.i]||'say') : (R?R.game:'say');
 function flash(t,k){S.msg={t,k:k||'ok'};}
 function go(screen){
   if(S.screen==='ask'||S.screen==='result') stopSpeech();
@@ -475,7 +478,7 @@ function viewKid(){
   '<h1>Hi, '+esc(k.name)+'!</h1>'+
   '<button class="tile" data-game="say" data-act="game-say"><span class="tile-ic">'+ic('say','fill')+'</span><span><b>Say to Spell</b><small>Hear the word, then spell it out loud</small></span></button>'+
   '<button class="tile" data-game="write" data-act="game-write"><span class="tile-ic">'+ic('pen')+'</span><span><b>Write to Spell</b><small>Hear the word, then write it on the screen</small></span></button>'+
-  '<button class="tile" data-game="beast" disabled><span class="tile-ic">'+ic('bolt','fill')+'</span><span><b>Beast Mode</b><small>Your tricky words, speaking and writing</small></span><span class="soon">Coming soon</span></button>'+
+  '<button class="tile" data-game="beast" data-act="game-beast"><span class="tile-ic">'+ic('bolt','fill')+'</span><span><b>Beast Mode</b><small>Your tricky words, speaking and writing</small></span></button>'+
   '<button class="btn btn-ghost" data-act="tricky" style="align-self:flex-start">My tricky words'+(t?' ('+t+')':'')+'</button></div>';
 }
 function trickyBlock(k,canEdit){
@@ -493,11 +496,21 @@ function viewTricky(){
 
 /* Game 1 */
 function viewSetup(){
-  const k=kid(), g=GAMES[S.game]||GAMES.say, counts={}; CAT_IDS.forEach(id=>{counts[id]=k.words.filter(w=>w.c===id).length;});
+  const k=kid(), g=GAMES[S.game]||GAMES.say;
+  const head='<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="back-kid">'+ic('back')+' Back</button></div>'+
+  '<header class="gamehead">'+ic(g.icon,(g.skin?g.skin+' ':'')+'huge')+'<div><h1>'+g.title+'</h1><p class="muted">'+esc(k.name)+' · '+g.sub+'</p></div></header>';
+  if(S.game==='beast'){
+    const bp=beastPool(k), can=bp.words.length>0;
+    const body=can
+      ? '<section class="panel"><h3>This round</h3><p class="sentence" style="font-size:1.15rem">'+bp.words.length+' word'+(bp.words.length===1?'':'s')+' — '+bp.trickyUse+' tricky + '+bp.fill+' challenging.</p><p class="muted flex" style="gap:8px">Each word is a surprise: say it '+ic('say','fill')+' or write it '+ic('pen')+'.</p></section>'
+      : '<p class="note">No tricky words yet and no Challenging words to practise. Play the other games to build a tricky list, or add Challenging words in Grown-ups.</p>';
+    return head+body+'<button class="btn btn-primary block" data-act="start"'+(can?'':' disabled')+'>Start</button>'+
+    '<p class="muted small">'+g.hint+'</p></div>';
+  }
+  const counts={}; CAT_IDS.forEach(id=>{counts[id]=k.words.filter(w=>w.c===id).length;});
   const pool=k.words.filter(w=>S.bank.has(w.c)).length;
   const note=!pool?'Pick a bank that has words in it.':pool>=20?'20 words this round.':pool+' word'+(pool===1?'':'s')+' in these banks. Add more words to make a full 20.';
-  return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="back-kid">'+ic('back')+' Back</button></div>'+
-  '<header class="gamehead">'+ic(g.icon,(g.skin?g.skin+' ':'')+'huge')+'<div><h1>'+g.title+'</h1><p class="muted">'+esc(k.name)+' · '+g.sub+'</p></div></header>'+
+  return head+
   '<fieldset class="banks"><legend>Which words today?</legend><div class="flex">'+CATS.map(c=>
     '<button class="chip" data-act="bank" data-id="'+c.id+'" aria-pressed="'+S.bank.has(c.id)+'"'+(counts[c.id]?'':' disabled')+'>'+c.label+' <small>'+counts[c.id]+'</small></button>').join('')+'</div></fieldset>'+
   '<p class="muted" aria-live="polite">'+note+'</p>'+
@@ -505,14 +518,14 @@ function viewSetup(){
   '<p class="muted small">'+g.hint+'</p></div>';
 }
 function gameBar(){
-  const timer=(R.game==='write'&&R.phase==='write')?'<span class="pill timer" aria-label="Time">'+ic('clock')+'<span id="timerval">'+fmtTime(R.time)+'</span></span>':'';
+  const timer=(mode()==='write'&&R.phase==='write')?'<span class="pill timer" aria-label="Time">'+ic('clock')+'<span id="timerval">'+fmtTime(R.time)+'</span></span>':'';
   return '<div class="bar"><button class="iconbtn" data-act="quit">'+ic('back')+' Quit</button><span class="pill">Word '+(R.i+1)+' of '+R.n+'</span>'+timer+
   '<span class="pill score" role="status" aria-label="Score '+R.score+' out of '+R.n+'">Score '+R.score+'/'+R.n+'</span></div>';
 }
 function quitPanel(){
   return R.quit?'<section class="panel"><h3>Leave this round?</h3><div class="flex"><button class="btn btn-primary sm" data-act="quit-yes">Leave</button><button class="btn btn-ghost sm" data-act="quit-no">Keep going</button></div></section>':'';
 }
-function viewAsk(){ return R.game==='write'?viewAskWrite():viewAskSay(); }
+function viewAsk(){ return mode()==='write'?viewAskWrite():viewAskSay(); }
 function viewAskWrite(){
   const w=cur();
   if(R.phase!=='write'){
@@ -550,7 +563,7 @@ function viewResult(){
   (w.s&&!fw?'<p class="muted">The word is <mark>'+esc(w.w)+'</mark></p>':'')+
   (!ok?'<div class="letters" role="img" aria-label="'+esc([...w.w].join(' '))+'">'+[...w.w].map(l=>'<span>'+esc(l)+'</span>').join('')+'</div>':'')+
   (ok&&R.attempt>0?'<p class="muted">Nice retry! Retries don’t add to the score.</p>':'')+'</section>'+
-  (R.game==='write'?'<section class="panel"><div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>'+(R.shot?'<figure class="shot" style="margin:0"><img alt="What '+esc(kid().name)+' wrote" src="'+R.shot+'"></figure>':'')+'</section>':'')+
+  (mode()==='write'?'<section class="panel"><div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>'+(R.shot?'<figure class="shot" style="margin:0"><img alt="What '+esc(kid().name)+' wrote" src="'+R.shot+'"></figure>':'')+'</section>':'')+
   '<div class="flex end">'+(ok?'':'<button class="btn btn-ghost" data-act="retry">Retry?</button>')+'<button class="btn btn-primary" data-act="next">Continue</button></div></div>';
 }
 function viewDone(){
@@ -648,7 +661,7 @@ function adminSettings(){
 
 function render(){
   const game=['setup','ask','result','done'].includes(S.screen)&&!S.loading&&!S.loadError;
-  if(game) $app.dataset.game=(R&&R.game)||S.game||'say'; else delete $app.dataset.game;
+  if(game){ $app.dataset.game=((S.screen==='ask'||S.screen==='result')&&R&&R.game==='beast')?(R.modes[R.i]||'say'):((R&&R.game)||S.game||'say'); } else delete $app.dataset.game;
   let h;
   if(S.loading) h=viewLoading();
   else if(S.loadError) h=viewLoadError();
@@ -660,20 +673,29 @@ function render(){
     }
   }
   $app.innerHTML=h;
-  if(S.screen==='ask'&&R&&R.game==='write'&&R.phase==='write') initPad();
+  if(S.screen==='ask'&&R&&mode()==='write'&&R.phase==='write') initPad();
   if(S.focus){const el=document.getElementById(S.focus);S.focus=null;if(el) el.focus();}
 }
 
 /* ---------- game flow (shared by Say and Write) ---------- */
+function beastPool(k){
+  const byKey=new Map(k.words.map(w=>[wordKey(w.w),w]));
+  const tricky=trickyList(k).map(t=>byKey.get(t.key)).filter(Boolean).slice(0,20);
+  const used=new Set(tricky.map(w=>wordKey(w.w)));
+  const chall=shuffle(k.words.filter(w=>w.c==='challenging'&&!used.has(wordKey(w.w)))).slice(0,20-tricky.length);
+  return {words:shuffle(tricky.concat(chall)),trickyUse:tricky.length,fill:chall.length};
+}
 function startRound(){
-  const k=kid(); const words=pickRound(k.words,S.bank,20); if(!words.length) return;
+  const k=kid();
+  const words=S.game==='beast'?beastPool(k).words:pickRound(k.words,S.bank,20);
+  if(!words.length) return;
   R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],
-     game:S.game,phase:null,time:0,shot:null,strokes:[]};
+     game:S.game,phase:null,time:0,shot:null,strokes:[],modes:S.game==='beast'?words.map(()=>Math.random()<0.5?'say':'write'):[]};
   window.scrollTo(0,0); askCurrent();
 }
 function askCurrent(){
   S.screen='ask';
-  if(R.game==='write') beginWriteWord();
+  if(mode()==='write') beginWriteWord();
   else { render(); window.scrollTo(0,0); speakCurrent(); }
 }
 function speakCurrent(){
@@ -681,22 +703,25 @@ function speakCurrent(){
   if(!synth){R.speaking=false;R.reveal=true;render();return;}
   R.speaking=true; render();
   speakSeq([w.w,w.s,w.w].filter(Boolean),()=>{
-    if(R&&S.screen==='ask'&&R.game==='say'&&cur()===w){R.speaking=false;render();}
+    if(R&&S.screen==='ask'&&mode()==='say'&&cur()===w){R.speaking=false;render();}
   });
 }
 function beginWriteWord(){
   const w=cur(); R.phase='listen'; R.strokes=[]; R.shot=null; R.time=0; R.speaking=!!synth; render(); window.scrollTo(0,0);
-  const toWrite=()=>{ if(R&&S.screen==='ask'&&R.game==='write'&&cur()===w){ R.phase='write'; R.speaking=false; render(); startTimer(); } };
+  const toWrite=()=>{ if(R&&S.screen==='ask'&&mode()==='write'&&cur()===w){ R.phase='write'; R.speaking=false; render(); startTimer(); } };
   if(!synth){ toWrite(); return; }
   speakSeq([w.w,w.s,w.w].filter(Boolean), toWrite);
 }
 function mark(ok){
   stopSpeech();
-  if(R.game==='write'){ stopTimer(); R.shot=(pad&&pad.c)?pad.c.toDataURL('image/png'):null; }
-  const w=cur(), k=kid(); R.speaking=false;
-  if(ok){if(R.attempt===0) R.score++; R.verdict='ok';}
-  else{
-    R.verdict='no'; const key=wordKey(w.w); k.tally[key]=(k.tally[key]||0)+1; queueSave(k);
+  if(mode()==='write'){ stopTimer(); R.shot=(pad&&pad.c)?pad.c.toDataURL('image/png'):null; }
+  const w=cur(), k=kid(), key=wordKey(w.w); R.speaking=false;
+  if(ok){
+    if(R.attempt===0) R.score++;
+    R.verdict='ok';
+    if(R.game==='beast'&&R.attempt===0&&k.tally[key]>0){ k.tally[key]--; if(!k.tally[key]) delete k.tally[key]; queueSave(k); }
+  } else {
+    R.verdict='no'; k.tally[key]=(k.tally[key]||0)+1; queueSave(k);
     if(!R.missed.includes(w)) R.missed.push(w);
   }
   S.screen='result'; render(); window.scrollTo(0,0);
@@ -774,9 +799,10 @@ function act(a,t){
     case 'use-local':S.mode='local';S.loadError=null;S.kids=loadLocal();render();break;
     case 'game-say':S.game='say';S.bank=new Set(CAT_IDS.filter(c=>kid().words.some(w=>w.c===c)));go('setup');break;
     case 'game-write':S.game='write';S.bank=new Set(CAT_IDS.filter(c=>kid().words.some(w=>w.c===c)));go('setup');break;
+    case 'game-beast':S.game='beast';go('setup');break;
     case 'bank':if(S.bank.has(id)) S.bank.delete(id); else S.bank.add(id); render();break;
     case 'start':startRound();break;
-    case 'hear':if(R.game==='write'){speakSeq([cur().w,cur().s,cur().w].filter(Boolean));}else speakCurrent();break;
+    case 'hear':if(mode()==='write'){speakSeq([cur().w,cur().s,cur().w].filter(Boolean));}else speakCurrent();break;
     case 'pad-undo':if(pad){pad.strokes.pop();redrawPad();}break;
     case 'pad-clear':if(pad){pad.strokes.length=0;redrawPad();}break;
     case 'reveal':R.reveal=!R.reveal;render();break;
