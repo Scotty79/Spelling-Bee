@@ -1,0 +1,788 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Isla &amp; Skye Spelling Bee</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600;700&display=swap">
+<style>
+/* Layout: one calm column (max 760px) built for an iPad held in two hands. Big round buttons, one job per screen.
+   Each game gets its own skin by setting data-game on a container: Say to Spell = tangerine + speech bubble,
+   Write to Spell = teal + pen (coming), Beast Mode = violet + bolt (coming). Components only read --accent tokens. */
+:root{
+  --bg:#F1F3F9; --surface:#FFFFFF; --surface-2:#E6EAF5; --ink:#17203F; --muted:#586080; --line:#D3D9EA;
+  --say:#D4470C; --say-deep:#A83606; --say-soft:#FFE3D4; --on-say:#FFFFFF;
+  --write:#0A7488; --write-deep:#075968; --write-soft:#D3EFF4; --on-write:#FFFFFF;
+  --beast:#5B3FC4; --beast-deep:#4630A0; --beast-soft:#E4DEF9; --on-beast:#FFFFFF;
+  --good:#1B7F4A; --good-soft:#D9F3E4; --on-good:#FFFFFF;
+  --warn:#9A5200; --warn-soft:#FFEBCB; --on-warn:#FFFFFF;
+  --focus:#1F5FD6;
+  --display:"Fredoka",ui-rounded,"Trebuchet MS",system-ui,sans-serif;
+  --body:"Andika","Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --accent:var(--ink); --accent-deep:var(--ink); --accent-soft:var(--surface-2); --on-accent:var(--bg); --hl:var(--say);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1329; --surface:#181F3D; --surface-2:#232C55; --ink:#ECEFFA; --muted:#A3ACCB; --line:#2D3763;
+    --say:#FF7A3D; --say-deep:#FFA474; --say-soft:#4A2210; --on-say:#2A0D01;
+    --write:#46C6DC; --write-deep:#7EDCEC; --write-soft:#0E3B45; --on-write:#04242B;
+    --beast:#A794F5; --beast-deep:#C3B6FA; --beast-soft:#2E2562; --on-beast:#1A1240;
+    --good:#5BD08C; --good-soft:#123D26; --on-good:#062B17;
+    --warn:#FFC36B; --warn-soft:#4A3208; --on-warn:#2B1A00;
+    --focus:#8DB4FF; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1329; --surface:#181F3D; --surface-2:#232C55; --ink:#ECEFFA; --muted:#A3ACCB; --line:#2D3763;
+  --say:#FF7A3D; --say-deep:#FFA474; --say-soft:#4A2210; --on-say:#2A0D01;
+  --write:#46C6DC; --write-deep:#7EDCEC; --write-soft:#0E3B45; --on-write:#04242B;
+  --beast:#A794F5; --beast-deep:#C3B6FA; --beast-soft:#2E2562; --on-beast:#1A1240;
+  --good:#5BD08C; --good-soft:#123D26; --on-good:#062B17;
+  --warn:#FFC36B; --warn-soft:#4A3208; --on-warn:#2B1A00;
+  --focus:#8DB4FF; color-scheme:dark;
+}
+[data-game="say"]{--accent:var(--say);--accent-deep:var(--say-deep);--accent-soft:var(--say-soft);--on-accent:var(--on-say);--hl:var(--say)}
+[data-game="write"]{--accent:var(--write);--accent-deep:var(--write-deep);--accent-soft:var(--write-soft);--on-accent:var(--on-write);--hl:var(--write)}
+[data-game="beast"]{--accent:var(--beast);--accent-deep:var(--beast-deep);--accent-soft:var(--beast-soft);--on-accent:var(--on-beast);--hl:var(--beast)}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 var(--body);-webkit-text-size-adjust:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px 36px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+h1,h2,h3,p,ul,fieldset{margin:0}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(1.9rem,6vw,2.6rem);font-weight:700}
+h2{font-size:1.55rem;font-weight:600}
+h3{font-size:1.15rem;font-weight:600}
+.wrap{max-width:760px;margin:0 auto}
+.stack{display:flex;flex-direction:column;gap:18px}
+.flex{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.end{justify-content:flex-end}
+.muted{color:var(--muted)}.small{font-size:.9rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+.ic{width:1.3em;height:1.3em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;--dot:var(--surface)}
+.ic.fill{fill:currentColor;stroke:none}
+.ic.big{width:56px;height:56px}.ic.huge{width:64px;height:64px;color:var(--accent)}
+
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0 10px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5}
+.bar .grow{flex:1}
+.iconbtn{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 14px 0 8px;border:0;background:none;font:600 1rem var(--display);color:var(--ink)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;min-height:36px;border-radius:999px;background:var(--surface);border:2px solid var(--line);font:600 1rem var(--display);font-variant-numeric:tabular-nums}
+.pill.score{background:var(--accent-soft);border-color:transparent;color:var(--accent-deep);margin-left:auto}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:12px 26px;border-radius:999px;border:2px solid transparent;
+  font:600 1.05rem var(--display);letter-spacing:.05em;text-transform:uppercase}
+.btn:disabled{opacity:.45;cursor:default}
+.btn-primary{background:var(--accent);color:var(--on-accent)}
+.btn-ghost{background:transparent;border-color:var(--accent);color:var(--accent-deep)}
+.btn-good{background:var(--good);color:var(--on-good)}
+.btn-warn{background:var(--warn);color:var(--on-warn)}
+.btn.block{width:100%;min-height:64px;font-size:1.25rem}
+.btn.sm{min-height:44px;padding:6px 16px;font-size:.9rem;letter-spacing:.03em}
+.linkbtn{background:none;border:0;padding:12px;font:600 1rem var(--display);color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+
+.brand{font:700 1rem var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.kidcard{display:flex;align-items:center;gap:16px;width:100%;text-align:left;padding:18px 20px;min-height:96px;border-radius:26px;background:var(--surface);border:2px solid var(--line);color:inherit}
+.kidcard b{display:block;font:700 1.6rem var(--display)}
+.avatar{width:58px;height:58px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font:700 1.8rem var(--display);flex:none}
+
+.tile{display:flex;align-items:center;gap:16px;width:100%;text-align:left;padding:20px;min-height:108px;border-radius:28px;border:0;background:var(--accent);color:var(--on-accent)}
+.tile b{display:block;font:700 1.5rem var(--display)}
+.tile small{display:block;font-size:.95rem;line-height:1.35}
+.tile .tile-ic{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--on-accent) 20%,transparent)}
+.tile .ic{width:34px;height:34px;--dot:var(--accent)}
+.tile[disabled]{background:var(--accent-soft);color:var(--accent-deep);cursor:default}
+.tile[disabled] .ic{--dot:var(--accent-soft)}
+.soon{margin-left:auto;font:600 .8rem var(--display);letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:2px solid currentColor;white-space:nowrap}
+
+.gamehead{display:flex;align-items:center;gap:16px}
+.gamehead .ic{--dot:var(--bg)}
+fieldset.banks{border:0;padding:0;display:flex;flex-direction:column;gap:12px}
+legend{font:600 1.2rem var(--display);padding:0;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:50px;padding:8px 20px;border-radius:999px;border:2px solid var(--line);background:var(--surface);color:var(--ink);font:600 1.05rem var(--display)}
+.chip small{font:400 .85rem var(--body);opacity:.85}
+.chip[aria-pressed="true"],.chip[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.chip:disabled{opacity:.45;cursor:default}
+
+.bubble{position:relative;background:var(--accent);color:var(--on-accent);border-radius:34px;padding:28px 26px;display:flex;align-items:center;gap:20px;margin-bottom:22px;min-height:132px}
+.bubble::after{content:"";position:absolute;left:52px;bottom:-22px;border:14px solid transparent;border-top:24px solid var(--accent);border-bottom:0}
+.bubble .ic{--dot:var(--accent)}
+.bubble .big-t{font:700 clamp(1.5rem,5.2vw,2.2rem) var(--display);line-height:1.15}
+.dots{display:flex;gap:8px;margin-top:10px}
+.dots span{width:11px;height:11px;border-radius:50%;background:currentColor;animation:bob 1s ease-in-out infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes bob{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-6px);opacity:1}}
+@media (prefers-reduced-motion: reduce){.dots span{animation:none}}
+
+.panel{background:var(--surface);border:2px solid var(--line);border-radius:24px;padding:20px 22px;display:flex;flex-direction:column;gap:14px}
+.revword{font:700 clamp(2.2rem,8vw,3.4rem) var(--display);letter-spacing:.02em;line-height:1.1}
+.sentence{font-size:clamp(1.3rem,4.2vw,1.85rem);line-height:1.6}
+mark{color:inherit;font-weight:700;padding:0 .12em;border-radius:.25em;background:linear-gradient(transparent 52%,color-mix(in srgb,var(--hl) 50%,transparent) 52%)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:480px){.two{grid-template-columns:1fr}}
+
+.verdict{display:flex;align-items:center;gap:14px;padding:20px 24px;border-radius:26px;font:700 clamp(1.7rem,5.5vw,2.4rem) var(--display)}
+.verdict .ic{width:1.2em;height:1.2em;stroke-width:3}
+.verdict.ok{background:var(--good-soft);color:var(--good)}
+.verdict.no{background:var(--warn-soft);color:var(--warn)}
+.letters{display:flex;gap:8px;flex-wrap:wrap}
+.letters span{min-width:2.3rem;height:2.7rem;padding:0 6px;display:grid;place-items:center;border-radius:12px;background:var(--bg);border:2px solid var(--line);font:600 1.45rem var(--display)}
+
+.final{background:var(--accent);color:var(--on-accent);border-radius:34px;padding:30px 26px;display:flex;flex-direction:column;gap:6px}
+.final .eyebrow{font:600 .9rem var(--display);letter-spacing:.14em;text-transform:uppercase;opacity:.9}
+.final .bigscore{font:700 clamp(4rem,16vw,6.5rem) var(--display);line-height:1;font-variant-numeric:tabular-nums}
+.final .bigscore span{font-size:.5em;opacity:.8}
+.miss{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px}
+.miss li{display:flex;flex-direction:column;gap:2px}
+.miss strong{font:700 1.3rem var(--display)}
+.miss .sentence{font-size:1.05rem;line-height:1.5}
+
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);overflow-x:auto}
+.tab{padding:12px 16px;background:none;border:0;border-bottom:4px solid transparent;margin-bottom:-2px;font:600 1.05rem var(--display);color:var(--muted);white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+label,.lbl{font:600 .95rem var(--display);letter-spacing:.02em}
+input[type=text],select,textarea{width:100%;background:var(--bg);border:2px solid var(--line);border-radius:14px;padding:10px 14px;min-height:50px}
+textarea{resize:vertical;min-height:84px}
+input[type=range]{width:100%;accent-color:var(--ink)}
+.addgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.addgrid .full{grid-column:1/-1}
+@media (max-width:520px){.addgrid{grid-template-columns:1fr}}
+details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:32px}
+.list{list-style:none;padding:0;display:flex;flex-direction:column;gap:10px}
+.item{background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.item .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.item .w{font:700 1.3rem var(--display)}
+.item .sent{font-size:1rem}
+.item .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.catsel{width:auto;min-height:40px;padding:2px 12px;border-radius:999px;font:600 .9rem var(--display)}
+.tag{font:600 .75rem var(--display);letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.note{padding:12px 16px;border-radius:14px;background:var(--surface-2)}
+.note.ok{background:var(--good-soft);color:var(--good)}
+.note.err{background:var(--warn-soft);color:var(--warn)}
+.tally{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tally svg{height:24px;width:auto;stroke:var(--ink);stroke-width:2.4;stroke-linecap:round}
+.tally .more{font:600 .9rem var(--display);color:var(--muted)}
+.tw{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tw .w{font:700 1.4rem var(--display);min-width:6ch}
+.empty{text-align:center;padding:28px 12px;color:var(--muted)}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-say" viewBox="0 0 24 24"><path d="M5 3.5h14A3.5 3.5 0 0 1 22.5 7v8a3.5 3.5 0 0 1-3.5 3.5h-6.2L8 22.5v-4H5A3.5 3.5 0 0 1 1.5 15V7A3.5 3.5 0 0 1 5 3.5z"/><circle cx="7.5" cy="11" r="1.6" style="fill:var(--dot)"/><circle cx="12" cy="11" r="1.6" style="fill:var(--dot)"/><circle cx="16.5" cy="11" r="1.6" style="fill:var(--dot)"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z"/><path d="M14.5 6.5l3 3"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L5 13.5h6L10 22l9-12h-6z"/></symbol>
+  <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+</svg>
+
+<div id="app"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ==PURE START== */
+const CATS=[{id:'core',label:'Core'},{id:'easy',label:'Easy'},{id:'medium',label:'Medium'},{id:'challenging',label:'Challenging'}];
+const CAT_IDS=CATS.map(c=>c.id);
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function escRe(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+function normWord(w){return String(w==null?'':w).replace(/[‘’]/g,"'").trim().replace(/\s+/g,' ');}
+function wordKey(w){return normWord(w).toLowerCase();}
+function validWord(w){return w.length>0&&w.length<=40&&/^\p{L}[\p{L}' -]*$/u.test(w);}
+function uid(){return Math.random().toString(36).slice(2,8);}
+function slug(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'kid';}
+
+/* '' = no bank given, null = not recognised, else a bank id */
+function catFrom(t){
+  t=String(t==null?'':t).trim().toLowerCase();
+  if(!t) return '';
+  if(t==='core') return 'core';
+  if(t==='easy') return 'easy';
+  if(t==='medium'||t==='med') return 'medium';
+  if(t==='challenging'||t==='challenge'||t==='hard'||t==='difficult') return 'challenging';
+  return null;
+}
+/* split on the first two commas or tabs only, so a sentence may contain commas */
+function splitLine(line){
+  const out=[]; let rest=line;
+  for(let n=0;n<2;n++){
+    const m=rest.search(/[,\t]/);
+    if(m<0) break;
+    out.push(rest.slice(0,m)); rest=rest.slice(m+1);
+  }
+  out.push(rest);
+  return out.map(s=>s.trim());
+}
+function parseImport(text,defCat,existingKeys){
+  const seen=new Set(existingKeys||[]); const add=[]; const bad=[]; let dupes=0;
+  String(text==null?'':text).split(/\r?\n/).forEach((raw,idx)=>{
+    const line=raw.trim(); if(!line) return;
+    const p=splitLine(line);
+    if(idx===0&&p.length>1&&/^word$/i.test(p[0])) return;
+    const w=normWord(p[0]);
+    if(!validWord(w)){bad.push({line,why:'Words can only use letters, hyphens and apostrophes'});return;}
+    let c=defCat,s='';
+    if(p.length===2){const cc=catFrom(p[1]); if(cc) c=cc; else if(cc===null) s=p[1];}
+    else if(p.length>=3){
+      const cc=catFrom(p[1]);
+      if(cc===null){bad.push({line,why:'Unknown bank “'+p[1]+'”'});return;}
+      if(cc) c=cc; s=p[2];
+    }
+    const key=wordKey(w);
+    if(seen.has(key)){dupes++;return;}
+    seen.add(key); add.push({w,c,s:s.trim()});
+  });
+  return {add,dupes,bad};
+}
+
+/* where the spelling word sits inside its sentence (exact word first, then a longer form such as "running") */
+function findWord(sentence,word){
+  if(!sentence||!word) return null;
+  const w=escRe(word);
+  let m=new RegExp('(^|[^\\p{L}\\p{N}])('+w+')(?![\\p{L}\\p{N}])','iu').exec(sentence);
+  if(!m) m=new RegExp('(^|[^\\p{L}\\p{N}])('+w+'\\p{L}*)','iu').exec(sentence);
+  if(!m) return null;
+  const start=m.index+m[1].length;
+  return {start,end:start+m[2].length};
+}
+function highlight(sentence,word){
+  if(!sentence) return '<mark>'+esc(word)+'</mark>';
+  const f=findWord(sentence,word);
+  if(!f) return esc(sentence);
+  return esc(sentence.slice(0,f.start))+'<mark>'+esc(sentence.slice(f.start,f.end))+'</mark>'+esc(sentence.slice(f.end));
+}
+function cleanSentence(s,word){
+  if(typeof s!=='string') return '';
+  s=s.replace(/\s+/g,' ').trim();
+  if(s.length<10||s.length>200) return '';
+  return findWord(s,word)?s:'';
+}
+
+function shuffle(a,rng){
+  rng=rng||Math.random; a=a.slice();
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}
+  return a;
+}
+function pickRound(words,banks,n,rng){return shuffle(words.filter(w=>banks.has(w.c)),rng).slice(0,n);}
+
+function tallySVG(n){
+  const cap=25, shown=Math.min(n,cap), groups=Math.ceil(shown/5); let out='';
+  for(let g=0;g<groups;g++){
+    const k=Math.min(5,shown-g*5); let l='';
+    for(let i=0;i<Math.min(k,4);i++){const x=4+i*5;l+='<line x1="'+x+'" y1="2" x2="'+x+'" y2="20"/>';}
+    if(k===5) l+='<line x1="1" y1="17" x2="22" y2="5"/>';
+    out+='<svg viewBox="0 0 24 22" aria-hidden="true">'+l+'</svg>';
+  }
+  return out+(n>cap?'<span class="more">+'+(n-cap)+'</span>':'');
+}
+function trickyList(k){
+  const by=new Map(k.words.map(w=>[wordKey(w.w),w]));
+  return Object.entries(k.tally||{}).filter(e=>e[1]>0).map(e=>{
+    const w=by.get(e[0]); return {key:e[0],n:e[1],w:w?w.w:e[0],c:w?w.c:''};
+  }).sort((a,b)=>b.n-a.n||a.w.localeCompare(b.w));
+}
+function scoreMessage(s,n){
+  if(!n) return ''; const p=s/n;
+  if(p===1) return 'Perfect round!'; if(p>=0.8) return 'Brilliant spelling!'; if(p>=0.5) return 'Nice work!'; return 'Good practice!';
+}
+/* ==PURE END== */
+
+/* ---------- app state ---------- */
+const $app=document.getElementById('app');
+const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),
+  adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,addCat:'core',
+  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,focus:null};
+let R=null, DB=null, SAMPLE=null, SPK=0;
+const LS_KEY='sbee.v1';
+
+/* per-device voice settings (voices differ on every device, so these stay in the browser) */
+const SET={uri:'',rate:0.9};
+try{const j=JSON.parse(localStorage.getItem('sbee.voice')||'null');if(j&&typeof j==='object'){SET.uri=String(j.uri||'');SET.rate=Math.min(1.1,Math.max(0.6,Number(j.rate)||0.9));}}catch(e){}
+function saveSet(){try{localStorage.setItem('sbee.voice',JSON.stringify(SET));}catch(e){}}
+
+/* ---------- storage ---------- */
+function normKid(id,d){
+  d=d||{};
+  const words=(Array.isArray(d.words)?d.words:[]).filter(w=>w&&typeof w.w==='string').map(w=>{
+    const o={id:String(w.id||uid()),w:w.w,c:CAT_IDS.includes(w.c)?w.c:'core',s:typeof w.s==='string'?w.s:''};
+    if(w.x) o.x=true; return o;});
+  const tally={}; if(d.tally&&typeof d.tally==='object') for(const key of Object.keys(d.tally)){const n=Number(d.tally[key]); if(n>0) tally[key]=Math.floor(n);}
+  return {id,name:String(d.name||id),order:Number(d.order)||0,words,tally};
+}
+function kidDoc(k){return {name:k.name,order:k.order,words:k.words.map(w=>{const o={id:w.id,w:w.w,c:w.c,s:w.s};if(w.x)o.x=true;return o;}),tally:k.tally};}
+function loadLocal(){
+  try{const j=JSON.parse(localStorage.getItem(LS_KEY)||'null');if(j&&Array.isArray(j.kids)) return j.kids.map(k=>normKid(String(k.id||slug(k.name)),k)).sort((a,b)=>a.order-b.order);}catch(e){}
+  return [];
+}
+function setSave(state,err){
+  S.save=state; S.saveErr=err||'';
+  const el=document.getElementById('savechip'); if(el) el.textContent=saveLabel();
+}
+function saveLabel(){
+  if(S.save==='saving') return 'Saving…';
+  if(S.save==='error') return 'Couldn’t save';
+  return S.mode==='local'?'Saved on this device':'Saved';
+}
+const saving={};
+function queueSave(k){
+  if(S.mode==='local'){
+    try{localStorage.setItem(LS_KEY,JSON.stringify({kids:S.kids.map(kidDoc).map((d,i)=>Object.assign({id:S.kids[i].id},d))}));setSave('saved');}
+    catch(e){setSave('error','This browser is not keeping data for the page.');}
+    return;
+  }
+  const s=saving[k.id]||(saving[k.id]={});
+  clearTimeout(s.timer); setSave('saving');
+  s.timer=setTimeout(()=>flush(k.id),350);
+}
+async function flush(id){
+  const s=saving[id]; if(s.busy){s.again=true;return;}
+  s.busy=true;
+  try{
+    do{
+      s.again=false; const k=S.kids.find(x=>x.id===id); if(!k) break;
+      await DB.doc('kids/'+id).set(kidDoc(k));
+    }while(s.again);
+    setSave('saved');
+  }catch(e){setSave('error',e&&e.message||'');}
+  finally{s.busy=false;}
+}
+async function initStore(){
+  S.loading=true; S.loadError=null; render();
+  let db=null, smp=null;
+  try{
+    const c=window.claude;
+    if(c&&c.use){[db,smp]=await Promise.all([c.use('db').catch(()=>null),c.use('sample').catch(()=>null)]);}
+  }catch(e){}
+  SAMPLE=smp; S.canGen=!!smp;
+  if(db){
+    try{
+      const snap=await db.collection('kids').get();
+      S.kids=snap.docs.map(d=>normKid(d.id,JSON.parse(JSON.stringify(d.data())))).sort((a,b)=>a.order-b.order);
+      DB=db; S.mode='cloud';
+    }catch(e){S.loadError=e;}
+  }else{S.mode='local'; S.kids=loadLocal();}
+  S.loading=false; render();
+}
+
+/* ---------- speech (the device's own voices: free, offline) ---------- */
+const synth=('speechSynthesis' in window)?window.speechSynthesis:null;
+function voiceScore(v){
+  let s; if(/^en[-_]AU/i.test(v.lang)) s=30; else if(/^en[-_]GB/i.test(v.lang)) s=20; else if(/^en/i.test(v.lang)) s=10; else return -1;
+  return /enhanced|premium|siri/i.test(v.name)?s+5:s;
+}
+function englishVoices(){return synth?synth.getVoices().filter(v=>voiceScore(v)>=0).sort((a,b)=>voiceScore(b)-voiceScore(a)||a.name.localeCompare(b.name)):[];}
+function pickVoice(){const vs=englishVoices();if(!vs.length) return null;return (SET.uri&&vs.find(v=>v.voiceURI===SET.uri))||vs[0];}
+function speakSeq(parts,done){
+  if(!synth){if(done) done(false);return;}
+  const tok=++SPK; synth.cancel(); let i=0;
+  const next=()=>{
+    if(tok!==SPK) return;
+    if(i>=parts.length){if(done) done(true);return;}
+    const text=parts[i++], u=new SpeechSynthesisUtterance(text), v=pickVoice();
+    if(v){u.voice=v;u.lang=v.lang;}else u.lang='en-AU';
+    u.rate=SET.rate; let fin=false;
+    const finish=()=>{if(fin) return;fin=true;clearTimeout(wd);setTimeout(next,i<parts.length?450:0);};
+    const wd=setTimeout(finish,5000+text.length*140); /* iOS sometimes never fires onend */
+    u.onend=finish; u.onerror=finish;
+    synth.speak(u);
+  };
+  setTimeout(next,80);
+}
+function stopSpeech(){SPK++;if(synth) synth.cancel();}
+
+/* ---------- helpers ---------- */
+const kid=()=>S.kids.find(k=>k.id===S.kidId);
+const aKid=()=>S.kids.find(k=>k.id===S.adminKid)||S.kids[0];
+const ic=(n,cls)=>'<svg class="ic '+(cls||'')+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+const catLabel=id=>(CATS.find(c=>c.id===id)||{label:id}).label;
+const cur=()=>R.words[R.i];
+function flash(t,k){S.msg={t,k:k||'ok'};}
+function go(screen){
+  if(S.screen==='ask'||S.screen==='result') stopSpeech();
+  S.screen=screen; S.msg=null; S.editId=null; S.delId=null; S.delKid=null; render(); window.scrollTo(0,0);
+}
+
+/* ---------- views ---------- */
+function viewLoading(){return '<div class="wrap stack"><p class="brand">Spelling Bee</p><p class="empty">Loading your word lists…</p></div>';}
+function viewLoadError(){
+  return '<div class="wrap stack"><p class="brand">Spelling Bee</p><h2>Couldn’t load your lists</h2>'+
+  '<p class="muted">Check your connection and try again. Nothing has been lost.</p>'+
+  '<div class="flex"><button class="btn btn-primary" data-act="reload">Try again</button><button class="btn btn-ghost" data-act="use-local">Use this device only</button></div></div>';
+}
+function addKidForm(){
+  return '<form data-form="addkid" class="flex" style="align-items:flex-end"><div class="field" style="flex:1;min-width:200px"><label for="kid-new">Child’s name</label><input type="text" id="kid-new" name="n" autocomplete="off" maxlength="24"></div><button class="btn btn-primary sm" type="submit">Add child</button></form>';
+}
+function viewHome(){
+  let body;
+  if(!S.kids.length){
+    body='<div class="panel"><h2>Who is spelling?</h2><p class="muted">Add each child so they get their own word list.</p>'+addKidForm()+'</div>';
+  }else{
+    body='<h2>Who’s spelling today?</h2>'+S.kids.map(k=>{
+      const t=trickyList(k).length;
+      return '<button class="kidcard" data-act="pick" data-id="'+esc(k.id)+'"><span class="avatar">'+esc(k.name.charAt(0).toUpperCase())+'</span><span><b>'+esc(k.name)+'</b><span class="muted">'+k.words.length+' words'+(t?' · '+t+' tricky':'')+'</span></span></button>';
+    }).join('');
+  }
+  return '<div class="wrap stack"><p class="brand">Spelling Bee</p>'+body+'<div><button class="linkbtn" data-act="admin">Grown-ups</button></div></div>';
+}
+function viewKid(){
+  const k=kid(), t=trickyList(k).length;
+  return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="home">'+ic('back')+' Back</button></div>'+
+  '<h1>Hi, '+esc(k.name)+'!</h1>'+
+  '<button class="tile" data-game="say" data-act="game-say"><span class="tile-ic">'+ic('say','fill')+'</span><span><b>Say to Spell</b><small>Hear the word, then spell it out loud</small></span></button>'+
+  '<button class="tile" data-game="write" disabled><span class="tile-ic">'+ic('pen')+'</span><span><b>Write to Spell</b><small>Write the word on the screen</small></span><span class="soon">Coming soon</span></button>'+
+  '<button class="tile" data-game="beast" disabled><span class="tile-ic">'+ic('bolt','fill')+'</span><span><b>Beast Mode</b><small>Your tricky words, speaking and writing</small></span><span class="soon">Coming soon</span></button>'+
+  '<button class="btn btn-ghost" data-act="tricky" style="align-self:flex-start">My tricky words'+(t?' ('+t+')':'')+'</button></div>';
+}
+function trickyBlock(k,canEdit){
+  const list=trickyList(k);
+  if(!list.length) return '<p class="empty">No tricky words yet.<br>Words that get spelled wrong will show up here.</p>';
+  return '<ul class="list">'+list.map(t=>
+    '<li class="item"><div class="tw"><span class="w">'+esc(t.w)+'</span><span class="tally" role="img" aria-label="Missed '+t.n+(t.n===1?' time':' times')+'">'+tallySVG(t.n)+'</span>'+
+    (canEdit?'<button class="btn btn-ghost sm" data-act="rmtally" data-key="'+esc(t.key)+'" style="margin-left:auto">Remove</button>':'')+'</div></li>').join('')+'</ul>';
+}
+function viewTricky(){
+  const k=kid();
+  return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="back-kid">'+ic('back')+' Back</button></div><h1>'+esc(k.name)+'’s tricky words</h1>'+
+  '<p class="muted">Words you have spelled wrong before. One tally mark for each mistake.</p>'+trickyBlock(k,false)+'</div>';
+}
+
+/* Game 1 */
+function viewSetup(){
+  const k=kid(), counts={}; CAT_IDS.forEach(id=>{counts[id]=k.words.filter(w=>w.c===id).length;});
+  const pool=k.words.filter(w=>S.bank.has(w.c)).length;
+  const note=!pool?'Pick a bank that has words in it.':pool>=20?'20 words this round.':pool+' word'+(pool===1?'':'s')+' in these banks. Add more words to make a full 20.';
+  return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="back-kid">'+ic('back')+' Back</button></div>'+
+  '<header class="gamehead">'+ic('say','fill huge')+'<div><h1>Say to Spell</h1><p class="muted">'+esc(k.name)+' · hear the word, then spell it out loud</p></div></header>'+
+  '<fieldset class="banks"><legend>Which words today?</legend><div class="flex">'+CATS.map(c=>
+    '<button class="chip" data-act="bank" data-id="'+c.id+'" aria-pressed="'+S.bank.has(c.id)+'"'+(counts[c.id]?'':' disabled')+'>'+c.label+' <small>'+counts[c.id]+'</small></button>').join('')+'</div></fieldset>'+
+  '<p class="muted" aria-live="polite">'+note+'</p>'+
+  '<button class="btn btn-primary block" data-act="start"'+(pool?'':' disabled')+'>Start</button>'+
+  '<p class="muted small">Turn the volume up and check the iPad isn’t on silent.</p></div>';
+}
+function gameBar(){
+  return '<div class="bar"><button class="iconbtn" data-act="quit">'+ic('back')+' Quit</button><span class="pill">Word '+(R.i+1)+' of '+R.n+'</span>'+
+  '<span class="pill score" role="status" aria-label="Score '+R.score+' out of '+R.n+'">Score '+R.score+'/'+R.n+'</span></div>';
+}
+function quitPanel(){
+  return R.quit?'<section class="panel"><h3>Leave this round?</h3><div class="flex"><button class="btn btn-primary sm" data-act="quit-yes">Leave</button><button class="btn btn-ghost sm" data-act="quit-no">Keep going</button></div></section>':'';
+}
+function viewAsk(){
+  const w=cur();
+  return '<div class="wrap stack">'+gameBar()+quitPanel()+
+  '<section class="bubble" aria-live="polite">'+ic('say','fill big')+'<div>'+(R.speaking?
+    '<p class="big-t">Listen…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>':
+    '<p class="big-t">Now spell it out loud!</p>')+'</div></section>'+
+  (!synth?'<p class="note err">This browser can’t read words aloud, so the word is shown below for a grown-up to read out.</p>':'')+
+  '<div class="flex"><button class="btn btn-ghost" data-act="hear">'+ic('speaker')+' Hear it again</button>'+
+  '<button class="btn btn-ghost" data-act="reveal">'+ic('eye')+(R.reveal?' Hide word':' Show word (grown-up)')+'</button></div>'+
+  (R.reveal?'<section class="panel"><p class="revword">'+esc(w.w)+'</p>'+(w.s?'<p class="sentence">'+highlight(w.s,w.w)+'</p>':'')+'</section>':'')+
+  '<section class="panel"><h3>Grown-up: how did they do?</h3><div class="two"><button class="btn btn-good" data-act="right">'+ic('check')+' Got it right</button><button class="btn btn-warn" data-act="wrong">Not quite</button></div></section></div>';
+}
+function viewResult(){
+  const w=cur(), ok=R.verdict==='ok', fw=findWord(w.s,w.w);
+  return '<div class="wrap stack">'+gameBar()+quitPanel()+
+  '<section class="verdict '+(ok?'ok':'no')+'">'+ic(ok?'check':'refresh')+'<span>'+(ok?'Great job!':'That’s not right.')+'</span></section>'+
+  '<section class="panel"><p class="sentence">'+highlight(w.s,w.w)+'</p>'+
+  (w.s&&!fw?'<p class="muted">The word is <mark>'+esc(w.w)+'</mark></p>':'')+
+  (!ok?'<div class="letters" role="img" aria-label="'+esc([...w.w].join(' '))+'">'+[...w.w].map(l=>'<span>'+esc(l)+'</span>').join('')+'</div>':'')+
+  (ok&&R.attempt>0?'<p class="muted">Nice retry! Retries don’t add to the score.</p>':'')+'</section>'+
+  '<div class="flex end">'+(ok?'':'<button class="btn btn-ghost" data-act="retry">Retry?</button>')+'<button class="btn btn-primary" data-act="next">Continue</button></div></div>';
+}
+function viewDone(){
+  const k=kid();
+  return '<div class="wrap stack"><section class="final"><p class="eyebrow">Round complete</p><p class="bigscore">'+R.score+'<span>/'+R.n+'</span></p><h2>'+scoreMessage(R.score,R.n)+'</h2></section>'+
+  (R.missed.length?'<section class="panel"><h3>Words to practise</h3><ul class="miss">'+R.missed.map(w=>'<li><strong>'+esc(w.w)+'</strong>'+(w.s?'<span class="sentence">'+highlight(w.s,w.w)+'</span>':'')+'</li>').join('')+'</ul><p class="muted small">Added to '+esc(k.name)+'’s tricky words.</p></section>':
+    '<section class="panel"><h3>Every word right first time!</h3></section>')+
+  '<div class="flex end"><button class="btn btn-ghost" data-act="back-kid">Menu</button><button class="btn btn-primary" data-act="start">Play again</button></div></div>';
+}
+
+/* Grown-ups */
+function msgHtml(){return '<div aria-live="polite">'+(S.msg?'<p class="note '+S.msg.k+'">'+esc(S.msg.t)+'</p>':'')+'</div>';}
+function viewAdmin(){
+  const k=aKid(); const tab=S.kids.length?S.adminTab:'settings';
+  let h='<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="home">'+ic('back')+' Back</button><h2 class="grow">Grown-ups</h2><span class="pill" id="savechip">'+saveLabel()+'</span></div>';
+  if(S.kids.length){
+    h+='<div class="seg" role="group" aria-label="Child">'+S.kids.map(x=>'<button class="chip" data-act="akid" data-id="'+esc(x.id)+'" aria-pressed="'+(x.id===k.id)+'">'+esc(x.name)+'</button>').join('')+'</div>';
+    h+='<div class="tabs" role="tablist">'+[['words','Words'],['tricky','Tricky words'],['settings','Settings']].map(t=>'<button class="tab" role="tab" data-act="atab" data-id="'+t[0]+'" aria-selected="'+(tab===t[0])+'">'+t[1]+'</button>').join('')+'</div>';
+  }
+  h+=msgHtml();
+  h+=tab==='words'?adminWords(k):tab==='tricky'?('<p class="muted">Words '+esc(k.name)+' has spelled wrong, most mistakes first.</p>'+trickyBlock(k,true)):adminSettings();
+  return h+'</div>';
+}
+function catOptions(sel){return CATS.map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+c.label+'</option>').join('');}
+function adminWords(k){
+  const counts={all:k.words.length}; CAT_IDS.forEach(id=>{counts[id]=k.words.filter(w=>w.c===id).length;});
+  const missing=k.words.filter(w=>!w.s).length, starter=k.words.filter(w=>w.x).length;
+  const rows=k.words.filter(w=>S.filter==='all'||w.c===S.filter).sort((a,b)=>a.w.localeCompare(b.w));
+  let h='';
+  if(starter) h+='<div class="note flex"><span style="flex:1;min-width:200px">Includes '+starter+' starter words so you can try the game.</span><button class="btn btn-ghost sm" data-act="rmstarter">Remove starter words</button></div>';
+  h+='<form class="panel" data-form="add"><h3>Add a word</h3><div class="addgrid">'+
+    '<div class="field"><label for="a-w">Word</label><input type="text" id="a-w" name="w" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40"></div>'+
+    '<div class="field"><label for="a-c">Bank</label><select id="a-c" name="c">'+catOptions(S.addCat)+'</select></div>'+
+    '<div class="field full"><label for="a-s">Sentence (optional)</label><input type="text" id="a-s" name="s" autocomplete="off" maxlength="200"></div></div>'+
+    '<div class="flex"><button class="btn btn-primary sm" type="submit">Add word</button></div></form>';
+  h+='<details class="panel"><summary>Paste a list of words</summary><form data-form="import" class="stack" style="margin-top:12px">'+
+    '<p class="muted small">One word per line. To set the bank and sentence too, use <b>word, bank, sentence</b> (banks: core, easy, medium, challenging). Leave the bank empty with <b>word,,sentence</b>. Lines copied from a spreadsheet work too.</p>'+
+    '<div class="field"><label for="imp-t">Your list</label><textarea id="imp-t" name="t" rows="6" spellcheck="false" autocapitalize="none" placeholder="because\nfriend, easy\ncurious, medium, The curious kitten peeked into the box."></textarea></div>'+
+    '<div class="field"><label for="imp-c">Bank for lines that don’t say</label><select id="imp-c" name="c">'+catOptions(S.addCat)+'</select></div>'+
+    '<div class="flex"><button class="btn btn-primary sm" type="submit">Import words</button></div></form></details>';
+  if(missing&&S.canGen){
+    h+='<div class="note flex"><span style="flex:1;min-width:200px" id="genstatus" aria-live="polite">'+genText(missing)+'</span><button class="btn btn-ghost sm" data-act="gen"'+(S.gen&&S.gen.running?' disabled':'')+'>Write missing sentences</button></div>';
+  }else if(missing){
+    h+='<p class="note">'+missing+' word'+(missing===1?' has':'s have')+' no sentence yet. Those words are read out twice, with no sentence in between.</p>';
+  }
+  h+='<div class="seg" role="group" aria-label="Filter by bank"><button class="chip" data-act="filter" data-id="all" aria-pressed="'+(S.filter==='all')+'">All <small>'+counts.all+'</small></button>'+
+    CATS.map(c=>'<button class="chip" data-act="filter" data-id="'+c.id+'" aria-pressed="'+(S.filter===c.id)+'">'+c.label+' <small>'+counts[c.id]+'</small></button>').join('')+'</div>';
+  h+=rows.length?'<ul class="list">'+rows.map(w=>wordRow(w)).join('')+'</ul>':'<p class="empty">No words here yet.</p>';
+  return h;
+}
+function genText(missing){
+  const g=S.gen;
+  if(!g) return missing+' word'+(missing===1?' has':'s have')+' no sentence. Claude can write them for you, and you can edit any you don’t like.';
+  if(g.running) return 'Writing sentences… '+g.done+' of '+g.total+' done.';
+  return 'Wrote '+g.done+' sentence'+(g.done===1?'':'s')+(g.bad?'; '+g.bad+' didn’t come out right, so those are still empty':'')+'.'+(g.err?' '+g.err:'');
+}
+function wordRow(w){
+  if(S.editId===w.id){
+    return '<li class="item"><form data-form="edit" data-id="'+esc(w.id)+'" class="stack"><div class="addgrid">'+
+    '<div class="field"><label for="e-w">Word</label><input type="text" id="e-w" name="w" value="'+esc(w.w)+'" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40"></div>'+
+    '<div class="field"><label for="e-c">Bank</label><select id="e-c" name="c">'+catOptions(w.c)+'</select></div>'+
+    '<div class="field full"><label for="e-s">Sentence</label><textarea id="e-s" name="s" rows="2" maxlength="200">'+esc(w.s)+'</textarea></div></div>'+
+    '<div class="acts"><button class="btn btn-primary sm" type="submit">Save</button><button class="btn btn-ghost sm" type="button" data-act="cancel">Cancel</button>'+
+    (S.canGen?'<button class="btn btn-ghost sm" type="button" data-act="suggest" id="suggest-btn">Write one for me</button><span class="muted small" id="suggest-note" aria-live="polite"></span>':'')+'</div></form></li>';
+  }
+  if(S.delId===w.id){
+    return '<li class="item"><p>Delete <b>'+esc(w.w)+'</b>?</p><div class="acts"><button class="btn btn-warn sm" data-act="del-yes" data-id="'+esc(w.id)+'">Yes, delete</button><button class="btn btn-ghost sm" data-act="del-no">Keep it</button></div></li>';
+  }
+  return '<li class="item"><div class="top"><span class="w">'+esc(w.w)+'</span>'+
+    '<select class="catsel" id="cat-'+esc(w.id)+'" data-change="cat" data-id="'+esc(w.id)+'" aria-label="Bank for '+esc(w.w)+'">'+catOptions(w.c)+'</select>'+(w.x?'<span class="tag">Starter</span>':'')+'</div>'+
+    '<p class="sent">'+(w.s?highlight(w.s,w.w):'<span class="tag warn">No sentence yet</span>')+'</p>'+
+    '<div class="acts"><button class="btn btn-ghost sm" data-act="edit" data-id="'+esc(w.id)+'">Edit</button><button class="btn btn-ghost sm" data-act="del" data-id="'+esc(w.id)+'">Delete</button></div></li>';
+}
+function adminSettings(){
+  let h='<section class="panel"><h3>Children</h3>';
+  h+=S.kids.map(k=>{
+    if(S.delKid===k.id) return '<div class="item"><p>Delete <b>'+esc(k.name)+'</b> and all of their words?</p><div class="acts"><button class="btn btn-warn sm" data-act="kid-del-yes" data-id="'+esc(k.id)+'">Yes, delete</button><button class="btn btn-ghost sm" data-act="kid-del-no">Keep</button></div></div>';
+    return '<form data-form="rename" data-id="'+esc(k.id)+'" class="flex" style="align-items:flex-end"><div class="field" style="flex:1;min-width:160px"><label for="kn-'+esc(k.id)+'">Name</label><input type="text" id="kn-'+esc(k.id)+'" name="n" value="'+esc(k.name)+'" maxlength="24"></div>'+
+      '<button class="btn btn-ghost sm" type="submit">Rename</button><button class="btn btn-ghost sm" type="button" data-act="kid-del" data-id="'+esc(k.id)+'">Delete</button></form>';
+  }).join('');
+  h+=addKidForm()+'</section>';
+  const vs=englishVoices(), v=pickVoice();
+  h+='<section class="panel"><h3>Voice on this device</h3>';
+  if(!synth) h+='<p class="note err">This browser can’t read words aloud.</p>';
+  else{
+    h+='<div class="field"><label for="voice-sel">Voice</label><select id="voice-sel" data-change="voice">'+(vs.length?vs.map(x=>'<option value="'+esc(x.voiceURI)+'"'+(v&&x.voiceURI===v.voiceURI?' selected':'')+'>'+esc(x.name)+' ('+esc(x.lang)+')</option>').join(''):'<option>Default voice</option>')+'</select></div>'+
+    '<div class="field"><label for="rate">Speed: <span id="ratev">'+SET.rate.toFixed(2)+'</span></label><input type="range" id="rate" min="0.6" max="1.1" step="0.05" value="'+SET.rate+'" data-change="rate"></div>'+
+    '<div class="flex"><button class="btn btn-ghost sm" data-act="voice-test">'+ic('speaker')+' Test voice</button></div>'+
+    '<p class="muted small">For a smoother voice, download an Enhanced voice in the iPad’s Settings under Accessibility, Spoken Content, Voices.</p>';
+  }
+  h+='</section>';
+  h+='<section class="panel"><h3>Where your lists are kept</h3><p>'+(S.mode==='local'?'This page isn’t signed in to Claude, so your lists are kept on this device only. Open it from your Claude account to keep them safely.':'Your lists are saved to your Claude account, so they are the same on any device you open this page on.')+'</p></section>';
+  return h;
+}
+
+function render(){
+  const game=['setup','ask','result','done'].includes(S.screen)&&!S.loading&&!S.loadError;
+  if(game) $app.dataset.game='say'; else delete $app.dataset.game;
+  let h;
+  if(S.loading) h=viewLoading();
+  else if(S.loadError) h=viewLoadError();
+  else{
+    switch(S.screen){
+      case 'kid':h=viewKid();break; case 'tricky':h=viewTricky();break; case 'setup':h=viewSetup();break;
+      case 'ask':h=viewAsk();break; case 'result':h=viewResult();break; case 'done':h=viewDone();break;
+      case 'admin':h=viewAdmin();break; default:h=viewHome();
+    }
+  }
+  $app.innerHTML=h;
+  if(S.focus){const el=document.getElementById(S.focus);S.focus=null;if(el) el.focus();}
+}
+
+/* ---------- Game 1 flow ---------- */
+function startRound(){
+  const k=kid(); const words=pickRound(k.words,S.bank,20); if(!words.length) return;
+  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[]};
+  S.screen='ask'; render(); window.scrollTo(0,0); speakCurrent();
+}
+function speakCurrent(){
+  const w=cur();
+  if(!synth){R.speaking=false;R.reveal=true;render();return;}
+  R.speaking=true; render();
+  speakSeq([w.w,w.s,w.w].filter(Boolean),()=>{
+    if(R&&S.screen==='ask'&&cur()===w){R.speaking=false;render();}
+  });
+}
+function mark(ok){
+  stopSpeech(); const w=cur(), k=kid(); R.speaking=false;
+  if(ok){if(R.attempt===0) R.score++; R.verdict='ok';}
+  else{
+    R.verdict='no'; const key=wordKey(w.w); k.tally[key]=(k.tally[key]||0)+1; queueSave(k);
+    if(!R.missed.includes(w)) R.missed.push(w);
+  }
+  S.screen='result'; render(); window.scrollTo(0,0);
+}
+function nextWord(){
+  R.i++; R.attempt=0; R.verdict=null; R.reveal=false; R.quit=false;
+  if(R.i>=R.n){S.screen='done';render();window.scrollTo(0,0);return;}
+  S.screen='ask'; render(); window.scrollTo(0,0); speakCurrent();
+}
+function retryWord(){
+  R.attempt++; R.verdict=null; R.reveal=false; R.quit=false;
+  S.screen='ask'; render(); window.scrollTo(0,0); speakCurrent();
+}
+
+/* ---------- sentences from Claude (optional, runs only on a tap) ---------- */
+function sentencePrompt(list){
+  return 'You write example sentences for a children’s spelling bee practice app. For each word listed below, write ONE complete, child-safe sentence of 8 to 14 words that uses the word exactly as written, once, in a way that makes its meaning clear to a primary-school child. No brand names, real people, or scary, sad or rude themes. Use Australian English spelling.\n\nReply with only a JSON array of {"word": string, "sentence": string} objects, one per word, in the same order.\n\nWords:\n'+list.join('\n');
+}
+function genError(e){
+  const c=e&&e.code;
+  if(c==='not_granted'||c==='sampling_disabled'||c==='not_declared') return 'Sentence writing isn’t allowed for this page.';
+  if(c==='rate_limited') return 'That’s too many requests for now. Try again in a minute.';
+  return 'Something went wrong. You can try again.';
+}
+async function genMissing(){
+  const k=aKid(); const todo=k.words.filter(w=>!w.s);
+  if(!todo.length||(S.gen&&S.gen.running)||!SAMPLE) return;
+  S.gen={running:true,done:0,total:todo.length,bad:0,err:''};
+  const status=()=>{const el=document.getElementById('genstatus');if(el) el.textContent=genText(todo.length);};
+  render();
+  for(let i=0;i<todo.length;i+=20){
+    const batch=todo.slice(i,i+20);
+    try{
+      const res=await SAMPLE.json(sentencePrompt(batch.map(w=>w.w)),{modelTier:'quick'});
+      const map=new Map((Array.isArray(res)?res:[]).map(r=>[wordKey(r&&r.word),r&&r.sentence]));
+      for(const w of batch){const s=cleanSentence(map.get(wordKey(w.w)),w.w);if(s){w.s=s;S.gen.done++;}else S.gen.bad++;}
+      queueSave(k); status();
+    }catch(e){S.gen.err=genError(e);S.gen.bad+=batch.length;break;}
+  }
+  S.gen.running=false; render();
+}
+async function suggestOne(btn){
+  const wEl=document.getElementById('e-w'), sEl=document.getElementById('e-s'), note=document.getElementById('suggest-note');
+  if(!wEl||!sEl||!SAMPLE) return;
+  const w=normWord(wEl.value);
+  if(!validWord(w)){if(note) note.textContent='Enter the word first.';return;}
+  btn.disabled=true; const old=btn.textContent; btn.textContent='Writing…'; if(note) note.textContent='';
+  let err='';
+  try{
+    const res=await SAMPLE.json(sentencePrompt([w]),{modelTier:'quick',cache:false});
+    const s=cleanSentence(Array.isArray(res)&&res[0]&&res[0].sentence,w);
+    if(s) sEl.value=s; else err='That one didn’t come out right. Try again.';
+  }catch(e){err=genError(e);}
+  btn.disabled=false; btn.textContent=old;
+  if(note) note.textContent=err;
+}
+
+/* ---------- actions ---------- */
+function addKid(name){
+  name=String(name||'').trim();
+  if(!name){flash('Type a name first.','err');S.focus='kid-new';render();return;}
+  let id=slug(name); if(S.kids.some(k=>k.id===id)) id+='-'+uid().slice(0,3);
+  const k={id,name,order:S.kids.reduce((m,x)=>Math.max(m,x.order),0)+1,words:[],tally:{}};
+  S.kids.push(k); S.adminKid=S.adminKid||id; queueSave(k); flash('Added '+name+'.'); render();
+}
+function act(a,t){
+  const id=t.dataset.id;
+  switch(a){
+    case 'pick':S.kidId=id;go('kid');break;
+    case 'home':go('home');break;
+    case 'back-kid':go('kid');break;
+    case 'tricky':go('tricky');break;
+    case 'admin':S.adminKid=S.adminKid||(S.kids[0]&&S.kids[0].id);go('admin');break;
+    case 'reload':initStore();break;
+    case 'use-local':S.mode='local';S.loadError=null;S.kids=loadLocal();render();break;
+    case 'game-say':S.bank=new Set(CAT_IDS.filter(c=>kid().words.some(w=>w.c===c)));go('setup');break;
+    case 'bank':if(S.bank.has(id)) S.bank.delete(id); else S.bank.add(id); render();break;
+    case 'start':startRound();break;
+    case 'hear':speakCurrent();break;
+    case 'reveal':R.reveal=!R.reveal;render();break;
+    case 'right':mark(true);break;
+    case 'wrong':mark(false);break;
+    case 'retry':retryWord();break;
+    case 'next':nextWord();break;
+    case 'quit':R.quit=true;render();break;
+    case 'quit-no':R.quit=false;render();break;
+    case 'quit-yes':stopSpeech();go('kid');break;
+    case 'akid':S.adminKid=id;S.editId=null;S.delId=null;S.filter='all';S.msg=null;S.gen=null;render();break;
+    case 'atab':S.adminTab=id;S.msg=null;render();break;
+    case 'filter':S.filter=id;render();break;
+    case 'edit':S.editId=id;S.delId=null;S.msg=null;S.focus='e-w';render();break;
+    case 'cancel':S.editId=null;S.msg=null;render();break;
+    case 'del':S.delId=id;S.editId=null;render();break;
+    case 'del-no':S.delId=null;render();break;
+    case 'del-yes':{const k=aKid();k.words=k.words.filter(w=>w.id!==id);S.delId=null;queueSave(k);render();break;}
+    case 'suggest':suggestOne(t);break;
+    case 'gen':genMissing();break;
+    case 'rmstarter':{const k=aKid();k.words=k.words.filter(w=>!w.x);queueSave(k);flash('Starter words removed.');render();break;}
+    case 'rmtally':{const k=aKid();delete k.tally[t.dataset.key];queueSave(k);render();break;}
+    case 'kid-del':S.delKid=id;render();break;
+    case 'kid-del-no':S.delKid=null;render();break;
+    case 'kid-del-yes':{
+      S.kids=S.kids.filter(k=>k.id!==id); S.delKid=null; if(S.adminKid===id) S.adminKid=S.kids[0]&&S.kids[0].id;
+      if(S.mode==='cloud'){setSave('saving');DB.doc('kids/'+id).delete().then(()=>setSave('saved'),e=>setSave('error',e&&e.message));}
+      else queueSave({id:'x'});
+      render();break;}
+    case 'voice-test':speakSeq(['bridge','We walked across the bridge to the park.','bridge']);break;
+  }
+}
+function form(name,f){
+  const el=f.elements;
+  if(name==='addkid'){addKid(el.n.value);return;}
+  if(name==='rename'){
+    const k=S.kids.find(x=>x.id===f.dataset.id), n=el.n.value.trim();
+    if(!k||!n){flash('A name can’t be empty.','err');render();return;}
+    k.name=n; queueSave(k); flash('Renamed to '+n+'.'); render(); return;
+  }
+  const k=aKid(); if(!k) return;
+  if(name==='add'){
+    const w=normWord(el.w.value), c=el.c.value, s=el.s.value.trim(); S.addCat=c; S.focus='a-w';
+    if(!validWord(w)){flash('Words can only use letters, hyphens and apostrophes.','err');render();return;}
+    if(k.words.some(x=>wordKey(x.w)===wordKey(w))){flash('“'+w+'” is already on this list.','err');render();return;}
+    k.words.push({id:uid(),w,c,s}); queueSave(k);
+    flash('Added “'+w+'”.'+(s&&!findWord(s,w)?' The sentence doesn’t contain the word, so it can’t be highlighted.':'')); render(); return;
+  }
+  if(name==='edit'){
+    const word=k.words.find(x=>x.id===f.dataset.id); if(!word) return;
+    const w=normWord(el.w.value), s=el.s.value.trim();
+    if(!validWord(w)){flash('Words can only use letters, hyphens and apostrophes.','err');render();return;}
+    if(k.words.some(x=>x!==word&&wordKey(x.w)===wordKey(w))){flash('“'+w+'” is already on this list.','err');render();return;}
+    if(wordKey(w)!==wordKey(word.w)&&k.tally[wordKey(word.w)]){k.tally[wordKey(w)]=(k.tally[wordKey(w)]||0)+k.tally[wordKey(word.w)];delete k.tally[wordKey(word.w)];}
+    word.w=w; word.c=el.c.value; word.s=s; delete word.x; S.editId=null; queueSave(k);
+    flash('Saved “'+w+'”.'+(s&&!findWord(s,w)?' The sentence doesn’t contain the word, so it can’t be highlighted.':'')); render(); return;
+  }
+  if(name==='import'){
+    const r=parseImport(el.t.value,el.c.value,k.words.map(x=>wordKey(x.w))); S.addCat=el.c.value;
+    r.add.forEach(x=>k.words.push({id:uid(),w:x.w,c:x.c,s:x.s}));
+    if(r.add.length) queueSave(k);
+    let t='Added '+r.add.length+' word'+(r.add.length===1?'':'s')+'.';
+    if(r.dupes) t+=' Skipped '+r.dupes+' already on the list.';
+    if(r.bad.length) t+=' Couldn’t read '+r.bad.length+' line'+(r.bad.length===1?'':'s')+': '+r.bad.slice(0,3).map(b=>'“'+b.line.slice(0,30)+'” ('+b.why+')').join('; ')+'.';
+    flash(t,r.bad.length&&!r.add.length?'err':'ok'); render();
+  }
+}
+function onChange(name,t){
+  if(name==='cat'){const k=aKid(),w=k.words.find(x=>x.id===t.dataset.id);if(w){w.c=t.value;queueSave(k);render();}}
+  else if(name==='voice'){SET.uri=t.value;saveSet();}
+  else if(name==='rate'){SET.rate=Math.min(1.1,Math.max(0.6,Number(t.value)||0.9));saveSet();const v=document.getElementById('ratev');if(v) v.textContent=SET.rate.toFixed(2);}
+}
+
+document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(!t||t.disabled) return;act(t.dataset.act,t);});
+document.addEventListener('submit',e=>{const f=e.target.closest('form[data-form]');if(!f) return;e.preventDefault();form(f.dataset.form,f);});
+document.addEventListener('change',e=>{const t=e.target.closest('[data-change]');if(t) onChange(t.dataset.change,t);});
+if(synth&&synth.addEventListener) synth.addEventListener('voiceschanged',()=>{if(!S.loading&&S.screen==='admin'&&S.adminTab==='settings') render();});
+
+render();
+initStore();
+})();
+</script>
+
+</body></html>
