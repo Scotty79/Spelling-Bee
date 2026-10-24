@@ -307,13 +307,13 @@ function scoreMessage(s,n){
 const $app=document.getElementById('app');
 const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),game:'say',
   adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,addCat:'core',
-  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,focus:null};
+  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,canImg:false,focus:null};
 let R=null, DB=null, SAMPLE=null, SPK=0, pad=null, timerIv=null;
 const LS_KEY='sbee.v1';
 
 /* per-device voice settings (voices differ on every device, so these stay in the browser) */
-const SET={uri:'',rate:0.9};
-try{const j=JSON.parse(localStorage.getItem('sbee.voice')||'null');if(j&&typeof j==='object'){SET.uri=String(j.uri||'');SET.rate=Math.min(1.1,Math.max(0.6,Number(j.rate)||0.9));}}catch(e){}
+const SET={uri:'',rate:0.9,check:'quick'};
+try{const j=JSON.parse(localStorage.getItem('sbee.voice')||'null');if(j&&typeof j==='object'){SET.uri=String(j.uri||'');SET.rate=Math.min(1.1,Math.max(0.6,Number(j.rate)||0.9));SET.check=j.check==='careful'?'careful':'quick';}}catch(e){}
 function saveSet(){try{localStorage.setItem('sbee.voice',JSON.stringify(SET));}catch(e){}}
 
 /* ---------- storage ---------- */
@@ -369,7 +369,9 @@ async function initStore(){
     const c=window.claude;
     if(c&&c.use){[db,smp]=await Promise.all([c.use('db').catch(()=>null),c.use('sample').catch(()=>null)]);}
   }catch(e){}
-  SAMPLE=smp; S.canGen=!!smp;
+  SAMPLE=smp; S.canGen=!!smp; S.canImg=false;
+  /* images are only sendable where the manifest declares them and the viewer allows it */
+  if(smp){try{const lim=await smp.limits(); S.canImg=!!(lim&&lim.images);}catch(e){}}
   if(db){
     try{
       const snap=await db.collection('kids').get();
@@ -408,7 +410,7 @@ function stopSpeech(){SPK++;if(synth) synth.cancel();}
 
 /* ---------- stopwatch (Write to Spell) ---------- */
 function fmtTime(ms){const s=Math.max(0,Math.round(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
-function startTimer(){stopTimer();R.tStart=Date.now();R.running=true;timerIv=setInterval(()=>{
+function startTimer(from){stopTimer();R.time=from||0;R.tStart=Date.now()-(from||0);R.running=true;timerIv=setInterval(()=>{
   if(!R||!R.running) return; R.time=Date.now()-R.tStart; const el=document.getElementById('timerval'); if(el) el.textContent=fmtTime(R.time);
 },200);}
 function stopTimer(){if(timerIv){clearInterval(timerIv);timerIv=null;}if(R&&R.running){R.time=Date.now()-R.tStart;R.running=false;}}
@@ -430,6 +432,87 @@ function initPad(){
   c.onpointerup=end;c.onpointercancel=end;c.onpointerleave=end;
 }
 
+/* ---------- handwriting check (Claude reads what the child wrote) ----------
+   The checker is never told the target word. If it knew, it would quietly read
+   the correct spelling off a misspelt page and every wrong answer would be
+   marked right. It transcribes blind; the comparison happens here. */
+const CHECK_PROMPT='This image shows a single word handwritten by a child aged 6 to 10 on a drawing pad.\n\n'+
+'Transcribe EXACTLY the letters on the page, left to right.\n'+
+'- Do NOT correct spelling. If the child wrote "freind", answer "FREIND".\n'+
+'- Do NOT guess at the intended word. Report only letters you can actually see.\n'+
+'- Ignore stray marks, smudges and crossed-out letters.\n'+
+'- Capital letters only, no spaces or punctuation.\n\n'+
+'Then say how legible it was: "clear" if you are confident of every letter, or '+
+'"unclear" if any letter is ambiguous (a/o, n/h, i/l and u/v are the common ones) '+
+'or the writing is too messy to be sure.\n\n'+
+'Reply with only this JSON: {"letters": "CAT", "confidence": "clear"}';
+
+/* Only reachable from a self-hosted copy of this page: a published artifact
+   cannot make network requests of its own, so inside Claude the check above
+   goes through claude.use('sample') instead. */
+const PROXY={url:'https://spelling-check.andrew-scotland.workers.dev',secret:'CrazyCat123!'};
+
+const canCheck=()=>!!(SAMPLE&&S.canImg)||!window.claude;
+function letterKey(s){return String(s==null?'':s).toUpperCase().replace(/[^A-Z]/g,'');}
+function parseRead(v){
+  if(!v||typeof v!=='object') return null;
+  return {letters:letterKey(v.letters),confidence:v.confidence==='clear'?'clear':'unclear'};
+}
+/* 'ok' only on an exact letter match; 'no' only when the reading was clear;
+   anything else goes to a grown-up rather than risking a wrong mark */
+function judgeRead(read,word){
+  if(!read||!read.letters) return 'unsure';
+  if(read.letters===letterKey(word)) return 'ok';
+  return read.confidence==='clear'?'no':'unsure';
+}
+function padSnapshot(){
+  if(!pad||!pad.c) return null;
+  const src=pad.c, scale=Math.min(1,900/src.width);
+  const o=document.createElement('canvas');
+  o.width=Math.max(1,Math.round(src.width*scale)); o.height=Math.max(1,Math.round(src.height*scale));
+  const x=o.getContext('2d'); x.fillStyle='#fffdf7'; x.fillRect(0,0,o.width,o.height); x.drawImage(src,0,0,o.width,o.height);
+  return o;
+}
+function canvasBlob(c){return new Promise(res=>{try{c.toBlob(b=>res(b),'image/png');}catch(e){res(null);}});}
+function checkError(e){
+  const c=e&&e.code;
+  if(c==='not_granted'||c==='sampling_disabled'||c==='not_declared'||c==='images_unavailable')
+    return 'Claude can’t read the writing on this device, so a grown-up can mark it.';
+  if(c==='rate_limited') return 'Claude is busy just now, so a grown-up can mark this one.';
+  if(c==='image_rejected') return 'That picture couldn’t be read, so a grown-up can mark this one.';
+  return 'The check didn’t come back, so a grown-up can mark this one.';
+}
+async function readHandwriting(canvas){
+  if(SAMPLE&&S.canImg){
+    const blob=await canvasBlob(canvas);
+    if(blob) return parseRead(await SAMPLE.json(CHECK_PROMPT,
+      {images:[blob],modelTier:SET.check==='careful'?'default':'quick',cache:false}));
+  }
+  if(!window.claude&&PROXY.url){
+    const r=await fetch(PROXY.url,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({secret:PROXY.secret,image:canvas.toDataURL('image/png')})});
+    if(!r.ok) throw {code:'upstream_error',message:'proxy '+r.status};
+    return parseRead(await r.json());
+  }
+  throw {code:'images_unavailable',message:'no checker available'};
+}
+async function doneWriting(){
+  if(!pad||!pad.strokes.length){R.err='Write the word first, then tap “I’m done”.';render();return;}
+  stopSpeech(); stopTimer();
+  const snap=padSnapshot();
+  R.shot=snap?snap.toDataURL('image/png'):null;
+  R.err=''; R.read=null; R.phase='checking'; render(); window.scrollTo(0,0);
+  const w=cur(), tok=R.i+':'+R.attempt;
+  let read=null, err='';
+  try{read=snap?await readHandwriting(snap):null;}catch(e){err=checkError(e);}
+  /* they may have quit or moved on while Claude was reading */
+  if(!R||S.screen!=='ask'||cur()!==w||(R.i+':'+R.attempt)!==tok) return;
+  R.read=read;
+  const v=judgeRead(read,w.w);
+  if(v==='unsure'){R.err=err; R.phase='unsure'; render(); window.scrollTo(0,0); return;}
+  mark(v==='ok');
+}
+
 /* ---------- helpers ---------- */
 const kid=()=>S.kids.find(k=>k.id===S.kidId);
 const aKid=()=>S.kids.find(k=>k.id===S.adminKid)||S.kids[0];
@@ -438,7 +521,7 @@ const catLabel=id=>(CATS.find(c=>c.id===id)||{label:id}).label;
 const cur=()=>R.words[R.i];
 const GAMES={
   say:{icon:'say',skin:'fill',title:'Say to Spell',sub:'hear the word, then spell it out loud',hint:'Turn the volume up and check the iPad isn’t on silent.'},
-  write:{icon:'pen',skin:'',title:'Write to Spell',sub:'hear the word, then write it on the screen',hint:'Write with a finger or an Apple Pencil, then a grown-up marks it.'},
+  write:{icon:'pen',skin:'',title:'Write to Spell',sub:'hear the word, then write it on the screen',hint:'Write with a finger or an Apple Pencil. Claude reads it and marks it.'},
   beast:{icon:'bolt',skin:'fill',title:'Beast Mode',sub:'tricky words, speaking and writing',hint:'A surprise mix of speaking and writing, toughest words first.'}
 };
 /* current question type: for Beast Mode it varies per word, otherwise it's the game itself */
@@ -526,8 +609,33 @@ function quitPanel(){
   return R.quit?'<section class="panel"><h3>Leave this round?</h3><div class="flex"><button class="btn btn-primary sm" data-act="quit-yes">Leave</button><button class="btn btn-ghost sm" data-act="quit-no">Keep going</button></div></section>':'';
 }
 function viewAsk(){ return mode()==='write'?viewAskWrite():viewAskSay(); }
+function graderPanel(){
+  return '<section class="panel"><h3>Grown-up: how did they do?</h3><div class="two">'+
+  '<button class="btn btn-good" data-act="right">'+ic('check')+' Got it right</button>'+
+  '<button class="btn btn-warn" data-act="wrong">Not quite</button></div>';
+}
+function wroteShot(){
+  return R.shot?'<figure class="shot" style="margin:0"><img alt="What '+esc(kid().name)+' wrote" src="'+R.shot+'"></figure>':'';
+}
 function viewAskWrite(){
   const w=cur();
+  if(R.phase==='checking'){
+    return '<div class="wrap stack">'+gameBar()+quitPanel()+
+    '<section class="bubble" aria-live="polite">'+ic('pen','big')+'<div><p class="big-t">Reading your writing…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div></div></section>'+
+    wroteShot()+'</div>';
+  }
+  /* Claude could not be sure, so the child is not marked wrong on a guess */
+  if(R.phase==='unsure'){
+    return '<div class="wrap stack">'+gameBar()+quitPanel()+
+    '<section class="bubble">'+ic('eye','big')+'<div><p class="big-t">Let’s check this one together</p></div></section>'+
+    '<section class="panel"><p class="revword">'+esc(w.w)+'</p>'+
+    (w.s?'<p class="sentence">'+highlight(w.s,w.w)+'</p>':'')+
+    (R.read&&R.read.letters
+      ? '<p class="muted small">Read as “'+esc(R.read.letters)+'”, but not clearly enough to be sure.</p>'
+      : '<p class="muted small">'+esc(R.err||'The writing couldn’t be read clearly.')+'</p>')+
+    wroteShot()+'</section>'+
+    graderPanel()+'<button class="linkbtn" data-act="try-again" style="align-self:flex-start">Let them write it again</button></section></div>';
+  }
   if(R.phase!=='write'){
     return '<div class="wrap stack">'+gameBar()+quitPanel()+
     '<section class="bubble" aria-live="polite">'+ic('pen','big')+'<div><p class="big-t">Listen…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div></div></section>'+
@@ -536,12 +644,16 @@ function viewAskWrite(){
   return '<div class="wrap stack">'+gameBar()+quitPanel()+
   '<section class="bubble">'+ic('pen','big')+'<div><p class="big-t">Write the word!</p></div></section>'+
   (!synth?'<p class="note err">This browser can’t read words aloud, so ask a grown-up to read the word, or tap “Show word”.</p>':'')+
+  (R.err?'<p class="note err">'+esc(R.err)+'</p>':'')+
   '<section class="pad-wrap"><canvas id="pad" class="pad" aria-label="Writing area"></canvas>'+
   '<div class="pad-tools"><button class="btn btn-ghost sm" data-act="hear">'+ic('speaker')+' Hear it again</button>'+
   '<button class="btn btn-ghost sm" data-act="pad-undo">Undo</button><button class="btn btn-ghost sm" data-act="pad-clear">Clear</button>'+
   '<button class="btn btn-ghost sm" data-act="reveal">'+ic('eye')+(R.reveal?' Hide word':' Show word (grown-up)')+'</button></div></section>'+
   (R.reveal?'<section class="panel"><p class="revword">'+esc(w.w)+'</p>'+(w.s?'<p class="sentence">'+highlight(w.s,w.w)+'</p>':'')+'</section>':'')+
-  '<section class="panel"><h3>Grown-up: how did they do?</h3><div class="two"><button class="btn btn-good" data-act="right">'+ic('check')+' Got it right</button><button class="btn btn-warn" data-act="wrong">Not quite</button></div></section></div>';
+  (canCheck()
+    ? '<button class="btn btn-primary block" data-act="done-write">'+ic('check')+' I’m done</button>'
+    : graderPanel()+'</section>')+
+  '</div>';
 }
 function viewAskSay(){
   const w=cur();
@@ -563,7 +675,11 @@ function viewResult(){
   (w.s&&!fw?'<p class="muted">The word is <mark>'+esc(w.w)+'</mark></p>':'')+
   (!ok?'<div class="letters" role="img" aria-label="'+esc([...w.w].join(' '))+'">'+[...w.w].map(l=>'<span>'+esc(l)+'</span>').join('')+'</div>':'')+
   (ok&&R.attempt>0?'<p class="muted">Nice retry! Retries don’t add to the score.</p>':'')+'</section>'+
-  (mode()==='write'?'<section class="panel"><div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>'+(R.shot?'<figure class="shot" style="margin:0"><img alt="What '+esc(kid().name)+' wrote" src="'+R.shot+'"></figure>':'')+'</section>':'')+
+  (mode()==='write'?'<section class="panel"><div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>'+
+    (R.read&&R.read.letters&&R.read.letters!==letterKey(w.w)?'<p class="muted small">Read as “'+esc(R.read.letters)+'”.</p>':'')+
+    (R.flipped?'<p class="muted small">Changed by a grown-up.</p>':'')+
+    wroteShot()+
+    '<button class="linkbtn" data-act="flip" style="align-self:flex-start">Grown-up: that was actually '+(ok?'not right':'right')+'</button></section>':'')+
   '<div class="flex end">'+(ok?'':'<button class="btn btn-ghost" data-act="retry">Retry?</button>')+'<button class="btn btn-primary" data-act="next">Continue</button></div></div>';
 }
 function viewDone(){
@@ -655,6 +771,16 @@ function adminSettings(){
     '<p class="muted small">For a smoother voice, download an Enhanced voice in the iPad’s Settings under Accessibility, Spoken Content, Voices.</p>';
   }
   h+='</section>';
+  h+='<section class="panel"><h3>Handwriting check</h3>';
+  if(S.canImg){
+    h+='<p class="muted small">Claude reads what the child writes on the screen and marks it. Quick is nearly instant; Careful uses a stronger model and takes a few seconds longer, which helps if neat writing is being misread.</p>'+
+    '<div class="seg" role="group" aria-label="How carefully to read">'+[['quick','Quick'],['careful','Careful']].map(o=>
+      '<button class="chip" data-act="checkmode" data-id="'+o[0]+'" aria-pressed="'+(SET.check===o[0])+'">'+o[1]+'</button>').join('')+'</div>'+
+    '<p class="muted small">When Claude can’t make out a letter it asks a grown-up instead of guessing, and every result can be changed afterwards.</p>';
+  }else{
+    h+='<p class="note">This copy of the page can’t have Claude read the handwriting, so a grown-up marks each written word. Opening the page from your Claude account turns the automatic check back on.</p>';
+  }
+  h+='</section>';
   h+='<section class="panel"><h3>Where your lists are kept</h3><p>'+(S.mode==='local'?'This page isn’t signed in to Claude, so your lists are kept on this device only. Open it from your Claude account to keep them safely.':'Your lists are saved to your Claude account, so they are the same on any device you open this page on.')+'</p></section>';
   return h;
 }
@@ -689,7 +815,7 @@ function startRound(){
   const k=kid();
   const words=S.game==='beast'?beastPool(k).words:pickRound(k.words,S.bank,20);
   if(!words.length) return;
-  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],
+  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],read:null,err:'',flipped:false,applied:null,
      game:S.game,phase:null,time:0,shot:null,strokes:[],modes:S.game==='beast'?words.map(()=>Math.random()<0.5?'say':'write'):[]};
   window.scrollTo(0,0); askCurrent();
 }
@@ -714,25 +840,45 @@ function beginWriteWord(){
 }
 function mark(ok){
   stopSpeech();
-  if(mode()==='write'){ stopTimer(); R.shot=(pad&&pad.c)?pad.c.toDataURL('image/png'):null; }
-  const w=cur(), k=kid(), key=wordKey(w.w); R.speaking=false;
-  if(ok){
-    if(R.attempt===0) R.score++;
-    R.verdict='ok';
-    if(R.game==='beast'&&R.attempt===0&&k.tally[key]>0){ k.tally[key]--; if(!k.tally[key]) delete k.tally[key]; queueSave(k); }
-  } else {
-    R.verdict='no'; k.tally[key]=(k.tally[key]||0)+1; queueSave(k);
-    if(!R.missed.includes(w)) R.missed.push(w);
-  }
+  if(mode()==='write'){ stopTimer(); if(!R.shot){const s=padSnapshot(); R.shot=s?s.toDataURL('image/png'):null;} }
+  R.speaking=false;
+  applyMark(ok);
   S.screen='result'; render(); window.scrollTo(0,0);
+}
+/* applyMark records what it changed so a grown-up can flip the verdict cleanly */
+function applyMark(ok){
+  const w=cur(), k=kid(), key=wordKey(w.w);
+  const a={scored:false,tallied:false,beastDec:false,missed:false};
+  if(ok){
+    if(R.attempt===0){ R.score++; a.scored=true; }
+    if(R.game==='beast'&&R.attempt===0&&k.tally[key]>0){ k.tally[key]--; if(!k.tally[key]) delete k.tally[key]; a.beastDec=true; queueSave(k); }
+  } else {
+    k.tally[key]=(k.tally[key]||0)+1; a.tallied=true; queueSave(k);
+    if(!R.missed.includes(w)){ R.missed.push(w); a.missed=true; }
+  }
+  R.verdict=ok?'ok':'no'; R.applied=a;
+}
+function unapplyMark(){
+  const w=cur(), k=kid(), key=wordKey(w.w), a=R.applied||{};
+  if(a.scored) R.score--;
+  if(a.tallied){ if(k.tally[key]>1) k.tally[key]--; else delete k.tally[key]; }
+  if(a.beastDec) k.tally[key]=(k.tally[key]||0)+1;
+  if(a.missed){ const i=R.missed.indexOf(w); if(i>=0) R.missed.splice(i,1); }
+  queueSave(k); R.applied=null;
+}
+function flipVerdict(){
+  const was=R.verdict==='ok';
+  unapplyMark(); applyMark(!was); R.flipped=true; render(); window.scrollTo(0,0);
 }
 function nextWord(){
   R.i++; R.attempt=0; R.verdict=null; R.reveal=false; R.quit=false;
+  R.read=null; R.err=''; R.flipped=false; R.applied=null; R.shot=null;
   if(R.i>=R.n){S.screen='done';render();window.scrollTo(0,0);return;}
   askCurrent();
 }
 function retryWord(){
   R.attempt++; R.verdict=null; R.reveal=false; R.quit=false;
+  R.read=null; R.err=''; R.flipped=false; R.applied=null; R.shot=null;
   askCurrent();
 }
 
@@ -808,6 +954,10 @@ function act(a,t){
     case 'reveal':R.reveal=!R.reveal;render();break;
     case 'right':mark(true);break;
     case 'wrong':mark(false);break;
+    case 'done-write':doneWriting();break;
+    case 'try-again':R.phase='write';R.err='';R.read=null;R.shot=null;R.strokes.length=0;render();startTimer(R.time);break;
+    case 'flip':flipVerdict();break;
+    case 'checkmode':SET.check=(id==='careful'?'careful':'quick');saveSet();render();break;
     case 'retry':retryWord();break;
     case 'next':nextWord();break;
     case 'quit':R.quit=true;render();break;
