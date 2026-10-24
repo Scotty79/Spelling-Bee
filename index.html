@@ -177,6 +177,8 @@ details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:
 .pad-tools{display:flex;gap:8px;flex-wrap:wrap}
 .shot{margin:12px 0 0;padding:8px;background:#fffdf7;border:2px solid var(--line);border-radius:18px}
 .shot img{display:block;width:100%;height:auto;border-radius:12px}
+.heardline{min-height:2.3em;font:600 clamp(1.2rem,4vw,1.6rem) var(--display);letter-spacing:.08em;color:var(--accent-deep);word-break:break-word}
+.heardline:empty::after{content:'\2026';opacity:.4}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -184,6 +186,7 @@ details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:
   <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1z"/><path d="M14.5 6.5l3 3"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L5 13.5h6L10 22l9-12h-6z"/></symbol>
   <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8.5 22h7"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
@@ -307,7 +310,7 @@ function scoreMessage(s,n){
 const $app=document.getElementById('app');
 const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),game:'say',
   adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,addCat:'core',
-  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,canImg:false,test:null,focus:null};
+  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,canImg:false,test:null,micTap:false,micBlocked:false,focus:null};
 let R=null, DB=null, SAMPLE=null, SPK=0, pad=null, timerIv=null;
 const LS_KEY='sbee.v1';
 
@@ -432,6 +435,123 @@ function initPad(){
   c.onpointerup=end;c.onpointercancel=end;c.onpointerleave=end;
 }
 
+/* ---------- listening (Safari's own speech recognition: free) ----------
+   It transcribes WORDS, not letter names, so "C-A-T" can come back as
+   "see ay tee", "cat" or "C. A. T.". The transcript is handed to Claude to
+   turn into letters, again without telling it the target word. */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null;
+const canHear=()=>!!SR&&!S.micBlocked;
+
+const SPELL_PROMPT_HEAD='A child aged 6 to 10 was asked to spell a word out loud, one letter at a time. '+
+'A speech recogniser wrote down what they said. Transcripts are rough: letter names arrive as words '+
+'("see" for C, "why" for Y, "double you" for W, "ar" for R), letters run together, and punctuation is arbitrary.\n\n'+
+'Transcript: ';
+const SPELL_PROMPT_TAIL='\n\nWork out the sequence of letters the child named, in order.\n'+
+'- Report only letters you can tell they named. Do NOT guess at, correct or complete a word.\n'+
+'- You have NOT been told what the word was. Do not assume one.\n'+
+'- Ignore filler ("um", "er"), false starts, and anything after they clearly finish.\n'+
+'- If the child plainly said a whole word instead of naming letters, set confidence to "unclear".\n'+
+'- Capital letters only, no spaces or punctuation.\n\n'+
+'Then say how sure you are: "clear" if you are confident of every letter, or "unclear" if any letter '+
+'name was ambiguous or the transcript is too garbled to be sure.\n\n'+
+'Your entire reply must be the JSON object below and nothing else. Do not explain.\n'+
+'{"letters": "CAT", "confidence": "clear"}';
+
+async function readSpelling(transcript){
+  const said=JSON.stringify(String(transcript||'').slice(0,400));
+  if(SAMPLE){
+    return parseRead(await SAMPLE.json(SPELL_PROMPT_HEAD+said+SPELL_PROMPT_TAIL,
+      {modelTier:SET.check==='careful'?'default':'quick',cache:false}));
+  }
+  if(!window.claude&&PROXY.url){
+    let r;
+    try{
+      r=await fetch(PROXY.url,{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({secret:PROXY.secret,careful:SET.check==='careful',transcript:String(transcript||'')})});
+    }catch(e){
+      throw {code:'network',detail:'couldn’t reach '+proxyHost()+' from this device'};
+    }
+    let body=null; try{body=await r.json();}catch(e){}
+    if(!r.ok) throw {code:'upstream_error',
+      detail:proxyHost()+' replied '+r.status+(body&&body.error?' ('+body.error+')':'')};
+    const read=parseRead(body);
+    if(!read) throw {code:'upstream_error',detail:proxyHost()+' sent an answer that could not be read'};
+    return read;
+  }
+  throw {code:'images_unavailable',message:'no checker available'};
+}
+
+function stopListening(){
+  if(!rec) return;
+  try{rec.onresult=null;rec.onerror=null;rec.onend=null;rec.abort();}catch(e){}
+  rec=null;
+  if(R) R.listening=false;
+}
+/* Each attempt gets a fresh recogniser: iOS misbehaves when one is reused. */
+function startListening(){
+  if(!canHear()) return false;
+  stopListening();
+  let finalText='';
+  const w=cur(), tok=R.i+':'+R.attempt;
+  const stale=()=>!R||S.screen!=='ask'||mode()!=='say'||cur()!==w||(R.i+':'+R.attempt)!==tok;
+  let r;
+  try{r=new SR();}catch(e){return false;}
+  r.lang='en-AU'; r.interimResults=true; r.continuous=false; r.maxAlternatives=1;
+  r.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i];
+      if(res.isFinal) finalText+=res[0].transcript+' '; else interim+=res[0].transcript;
+    }
+    if(stale()) return;
+    R.heard=(finalText+' '+interim).replace(/\s+/g,' ').trim();
+    const el=document.getElementById('heard'); if(el) el.textContent=R.heard;
+  };
+  r.onerror=e=>{
+    const kind=e&&e.error;
+    if(kind==='aborted') return;
+    if(stale()) return;
+    R.listening=false;
+    if(kind==='not-allowed'||kind==='service-not-allowed'){
+      /* permission refused: fall back to grown-up marking for the rest of the session */
+      S.micBlocked=true;
+      R.err='The microphone isn’t allowed on this device, so a grown-up can mark these.';
+    }else if(kind==='no-speech'){
+      R.err='Didn’t catch that — tap the microphone to try again.';
+    }else if(kind==='audio-capture'){
+      S.micBlocked=true;
+      R.err='No microphone was found, so a grown-up can mark these.';
+    }else{
+      R.err='The microphone stopped — tap it to try again.';
+    }
+    render();
+  };
+  r.onend=()=>{
+    if(stale()) return;
+    if(!R.listening) return;   /* an error already handled it */
+    R.listening=false;
+    const said=(R.heard||'').trim();
+    if(said) submitSpoken(said);
+    else {R.err='Didn’t catch that — tap the microphone to try again.'; render();}
+  };
+  try{r.start();}catch(e){return false;}
+  rec=r; R.listening=true; R.err=''; R.heard='';
+  return true;
+}
+async function submitSpoken(said){
+  stopSpeech();
+  R.phase='checking'; R.err=''; R.read=null; render(); window.scrollTo(0,0);
+  const w=cur(), tok=R.i+':'+R.attempt;
+  let read=null, err='';
+  try{read=await readSpelling(said);}catch(e){err=checkError(e);}
+  if(!R||S.screen!=='ask'||cur()!==w||(R.i+':'+R.attempt)!==tok) return;
+  R.read=read;
+  const v=judgeRead(read,w.w,true);
+  if(v==='unsure'){R.err=err; R.phase='unsure'; render(); window.scrollTo(0,0); return;}
+  mark(v==='ok');
+}
+
 /* ---------- handwriting check (Claude reads what the child wrote) ----------
    The checker is never told the target word. If it knew, it would quietly read
    the correct spelling off a misspelt page and every wrong answer would be
@@ -459,10 +579,14 @@ function parseRead(v){
   return {letters:letterKey(v.letters),confidence:v.confidence==='clear'?'clear':'unclear'};
 }
 /* 'ok' only on an exact letter match; 'no' only when the reading was clear;
-   anything else goes to a grown-up rather than risking a wrong mark */
-function judgeRead(read,word){
+   anything else goes to a grown-up rather than risking a wrong mark.
+   strict=true for spoken answers: handwriting leaves the letters on the page,
+   so an exact match is proof even if one letter looked ambiguous, but an
+   "unclear" spoken reading can mean the child said the whole word instead of
+   spelling it out, which must not count as a pass. */
+function judgeRead(read,word,strict){
   if(!read||!read.letters) return 'unsure';
-  if(read.letters===letterKey(word)) return 'ok';
+  if(read.letters===letterKey(word)) return (strict&&read.confidence!=='clear')?'unsure':'ok';
   return read.confidence==='clear'?'no':'unsure';
 }
 function padSnapshot(){
@@ -554,7 +678,7 @@ const ic=(n,cls)=>'<svg class="ic '+(cls||'')+'" aria-hidden="true"><use href="#
 const catLabel=id=>(CATS.find(c=>c.id===id)||{label:id}).label;
 const cur=()=>R.words[R.i];
 const GAMES={
-  say:{icon:'say',skin:'fill',title:'Say to Spell',sub:'hear the word, then spell it out loud',hint:'Turn the volume up and check the iPad isn’t on silent.'},
+  say:{icon:'say',skin:'fill',title:'Say to Spell',sub:'hear the word, then spell it out loud',hint:'Turn the volume up and check the iPad isn’t on silent. Spell out loud, one letter at a time.'},
   write:{icon:'pen',skin:'',title:'Write to Spell',sub:'hear the word, then write it on the screen',hint:'Write with a finger or an Apple Pencil. Claude reads it and marks it.'},
   beast:{icon:'bolt',skin:'fill',title:'Beast Mode',sub:'tricky words, speaking and writing',hint:'A surprise mix of speaking and writing, toughest words first.'}
 };
@@ -563,7 +687,7 @@ const mode=()=> (R&&R.game==='beast') ? (R.modes[R.i]||'say') : (R?R.game:'say')
 function flash(t,k){S.msg={t,k:k||'ok'};}
 function go(screen){
   if(S.screen==='ask'||S.screen==='result') stopSpeech();
-  stopTimer();
+  stopListening(); stopTimer();
   S.screen=screen; S.msg=null; S.editId=null; S.delId=null; S.delKid=null; render(); window.scrollTo(0,0);
 }
 
@@ -689,17 +813,51 @@ function viewAskWrite(){
     : graderPanel()+'</section>')+
   '</div>';
 }
+function heardLine(){
+  return '<section class="panel"><p class="lbl">What we heard</p>'+
+  '<p class="heardline" id="heard">'+esc(R.heard||'')+'</p></section>';
+}
 function viewAskSay(){
   const w=cur();
+  if(R.phase==='checking'){
+    return '<div class="wrap stack">'+gameBar()+quitPanel()+
+    '<section class="bubble" aria-live="polite">'+ic('say','fill big')+'<div><p class="big-t">Checking your spelling…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div></div></section>'+
+    heardLine()+'</div>';
+  }
+  if(R.phase==='unsure'){
+    return '<div class="wrap stack">'+gameBar()+quitPanel()+
+    '<section class="bubble">'+ic('eye','big')+'<div><p class="big-t">Let’s check this one together</p></div></section>'+
+    '<section class="panel"><p class="revword">'+esc(w.w)+'</p>'+
+    (w.s?'<p class="sentence">'+highlight(w.s,w.w)+'</p>':'')+
+    (R.heard?'<p class="muted small">Heard: “'+esc(R.heard)+'”</p>':'')+
+    (R.read&&R.read.letters
+      ? '<p class="muted small">Read as “'+esc(R.read.letters)+'”, but not clearly enough to be sure.</p>'
+      : '<p class="muted small">'+esc(R.err||'That wasn’t clear enough to be sure.')+'</p>')+
+    '</section>'+
+    graderPanel()+'<button class="linkbtn" data-act="say-again" style="align-self:flex-start">Let them spell it again</button></section></div>';
+  }
+  if(R.phase!=='speak'){
+    return '<div class="wrap stack">'+gameBar()+quitPanel()+
+    '<section class="bubble" aria-live="polite">'+ic('say','fill big')+'<div><p class="big-t">Listen…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div></div></section>'+
+    (!synth?'<p class="note err">This browser can’t read words aloud.</p>':'')+'</div>';
+  }
+  const listening=!!R.listening;
   return '<div class="wrap stack">'+gameBar()+quitPanel()+
-  '<section class="bubble" aria-live="polite">'+ic('say','fill big')+'<div>'+(R.speaking?
-    '<p class="big-t">Listen…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>':
-    '<p class="big-t">Now spell it out loud!</p>')+'</div></section>'+
+  '<section class="bubble" aria-live="polite">'+ic('say','fill big')+'<div>'+(listening
+    ? '<p class="big-t">Listening…</p><div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>'
+    : '<p class="big-t">Now spell it out loud!</p>')+'</div></section>'+
   (!synth?'<p class="note err">This browser can’t read words aloud, so the word is shown below for a grown-up to read out.</p>':'')+
+  (R.err?'<p class="note err">'+esc(R.err)+'</p>':'')+
+  (canHear()?heardLine():'')+
   '<div class="flex"><button class="btn btn-ghost" data-act="hear">'+ic('speaker')+' Hear it again</button>'+
   '<button class="btn btn-ghost" data-act="reveal">'+ic('eye')+(R.reveal?' Hide word':' Show word (grown-up)')+'</button></div>'+
   (R.reveal?'<section class="panel"><p class="revword">'+esc(w.w)+'</p>'+(w.s?'<p class="sentence">'+highlight(w.s,w.w)+'</p>':'')+'</section>':'')+
-  '<section class="panel"><h3>Grown-up: how did they do?</h3><div class="two"><button class="btn btn-good" data-act="right">'+ic('check')+' Got it right</button><button class="btn btn-warn" data-act="wrong">Not quite</button></div></section></div>';
+  (canHear()&&canCheck()
+    ? (listening
+       ? '<button class="btn btn-primary block" data-act="listen-stop">'+ic('check')+' I’m done</button>'
+       : '<button class="btn btn-primary block" data-act="listen-start">'+ic('mic')+' Tap to spell</button>')
+    : graderPanel()+'</section>')+
+  '</div>';
 }
 function viewResult(){
   const w=cur(), ok=R.verdict==='ok', fw=findWord(w.s,w.w);
@@ -709,11 +867,13 @@ function viewResult(){
   (w.s&&!fw?'<p class="muted">The word is <mark>'+esc(w.w)+'</mark></p>':'')+
   (!ok?'<div class="letters" role="img" aria-label="'+esc([...w.w].join(' '))+'">'+[...w.w].map(l=>'<span>'+esc(l)+'</span>').join('')+'</div>':'')+
   (ok&&R.attempt>0?'<p class="muted">Nice retry! Retries don’t add to the score.</p>':'')+'</section>'+
-  (mode()==='write'?'<section class="panel"><div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>'+
+  '<section class="panel">'+
+    (mode()==='write'?'<div class="flex" style="align-items:center"><span class="pill timer">'+ic('clock')+fmtTime(R.time)+'</span><span class="muted">Time for this word</span></div>':'')+
+    (mode()==='say'&&R.heard?'<p class="muted small">Heard: “'+esc(R.heard)+'”</p>':'')+
     (R.read&&R.read.letters&&R.read.letters!==letterKey(w.w)?'<p class="muted small">Read as “'+esc(R.read.letters)+'”.</p>':'')+
     (R.flipped?'<p class="muted small">Changed by a grown-up.</p>':'')+
-    wroteShot()+
-    '<button class="linkbtn" data-act="flip" style="align-self:flex-start">Grown-up: that was actually '+(ok?'not right':'right')+'</button></section>':'')+
+    (mode()==='write'?wroteShot():'')+
+    '<button class="linkbtn" data-act="flip" style="align-self:flex-start">Grown-up: that was actually '+(ok?'not right':'right')+'</button></section>'+
   '<div class="flex end">'+(ok?'':'<button class="btn btn-ghost" data-act="retry">Retry?</button>')+'<button class="btn btn-primary" data-act="next">Continue</button></div></div>';
 }
 function viewDone(){
@@ -854,14 +1014,27 @@ function startRound(){
   const k=kid();
   const words=S.game==='beast'?beastPool(k).words:pickRound(k.words,S.bank,20);
   if(!words.length) return;
-  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],read:null,err:'',flipped:false,applied:null,
+  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],read:null,err:'',flipped:false,applied:null,heard:'',listening:false,
      game:S.game,phase:null,time:0,shot:null,strokes:[],modes:S.game==='beast'?words.map(()=>Math.random()<0.5?'say':'write'):[]};
   window.scrollTo(0,0); askCurrent();
 }
 function askCurrent(){
   S.screen='ask';
-  if(mode()==='write') beginWriteWord();
-  else { render(); window.scrollTo(0,0); speakCurrent(); }
+  if(mode()==='write') beginWriteWord(); else beginSayWord();
+}
+function beginSayWord(){
+  const w=cur();
+  R.phase='listen'; R.heard=''; R.read=null; R.err=''; R.listening=false; R.speaking=!!synth;
+  render(); window.scrollTo(0,0);
+  const toSpeak=()=>{
+    if(!R||S.screen!=='ask'||mode()!=='say'||cur()!==w) return;
+    R.phase='speak'; R.speaking=false; render();
+    /* Try to start listening straight away; if the browser wants a tap first,
+       fall back to the microphone button for the rest of the session. */
+    if(canHear()&&!S.micTap&&!startListening()){ S.micTap=true; render(); }
+  };
+  if(!synth){ toSpeak(); return; }
+  speakSeq([w.w,w.s,w.w].filter(Boolean), toSpeak);
 }
 function speakCurrent(){
   const w=cur();
@@ -911,13 +1084,13 @@ function flipVerdict(){
 }
 function nextWord(){
   R.i++; R.attempt=0; R.verdict=null; R.reveal=false; R.quit=false;
-  R.read=null; R.err=''; R.flipped=false; R.applied=null; R.shot=null;
+  R.read=null; R.err=''; R.flipped=false; R.applied=null; R.shot=null; R.heard=''; stopListening();
   if(R.i>=R.n){S.screen='done';render();window.scrollTo(0,0);return;}
   askCurrent();
 }
 function retryWord(){
   R.attempt++; R.verdict=null; R.reveal=false; R.quit=false;
-  R.read=null; R.err=''; R.flipped=false; R.applied=null; R.shot=null;
+  R.read=null; R.err=''; R.flipped=false; R.applied=null; R.shot=null; R.heard=''; stopListening();
   askCurrent();
 }
 
@@ -987,7 +1160,10 @@ function act(a,t){
     case 'game-beast':S.game='beast';go('setup');break;
     case 'bank':if(S.bank.has(id)) S.bank.delete(id); else S.bank.add(id); render();break;
     case 'start':startRound();break;
-    case 'hear':if(mode()==='write'){speakSeq([cur().w,cur().s,cur().w].filter(Boolean));}else speakCurrent();break;
+    case 'hear':stopListening();render();if(mode()==='write'){speakSeq([cur().w,cur().s,cur().w].filter(Boolean));}else speakCurrent();break;
+    case 'listen-start':if(!startListening()){R.err='The microphone wouldn’t start — a grown-up can mark this one.';}render();break;
+    case 'listen-stop':if(rec){try{rec.stop();}catch(e){}}else{R.listening=false;render();}break;
+    case 'say-again':R.phase='speak';R.err='';R.read=null;R.heard='';render();break;
     case 'pad-undo':if(pad){pad.strokes.pop();redrawPad();}break;
     case 'pad-clear':if(pad){pad.strokes.length=0;redrawPad();}break;
     case 'reveal':R.reveal=!R.reveal;render();break;
