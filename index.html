@@ -448,10 +448,10 @@ const SPELL_PROMPT_HEAD='A child aged 6 to 10 was asked to spell a word out loud
 '("see" for C, "why" for Y, "double you" for W, "ar" for R), letters run together, and punctuation is arbitrary.\n\n'+
 'Transcript: ';
 const SPELL_PROMPT_TAIL='\n\nWork out the sequence of letters the child named, in order.\n'+
-'- Report only letters you can tell they named. Do NOT guess at, correct or complete a word.\n'+
+'- The recogniser often assembles named letters back into a word: a transcript of "CLOSE" is most likely the letters C, L, O, S, E named one at a time. Report the letters it spells out.\n'+
+'- Report only letters you can tell they named. Do NOT guess at, correct or complete a word, and never repair a misspelling: a transcript of "FREIND" must come back as FREIND.\n'+
 '- You have NOT been told what the word was. Do not assume one.\n'+
 '- Ignore filler ("um", "er"), false starts, and anything after they clearly finish.\n'+
-'- If the child plainly said a whole word instead of naming letters, set confidence to "unclear".\n'+
 '- Capital letters only, no spaces or punctuation.\n\n'+
 'Then say how sure you are: "clear" if you are confident of every letter, or "unclear" if any letter '+
 'name was ambiguous or the transcript is too garbled to be sure.\n\n'+
@@ -506,6 +506,7 @@ function startListening(){
     }
     if(stale()) return;
     R.heard=(finalText+' '+interim).replace(/\s+/g,' ').trim();
+    R.lastHeard=Date.now();
     const el=document.getElementById('heard'); if(el) el.textContent=R.heard;
   };
   r.onerror=e=>{
@@ -537,6 +538,7 @@ function startListening(){
   };
   try{r.start();}catch(e){return false;}
   rec=r; R.listening=true; R.err=''; R.heard='';
+  R.listenStart=Date.now(); R.lastHeard=0;
   return true;
 }
 async function submitSpoken(said){
@@ -547,9 +549,23 @@ async function submitSpoken(said){
   try{read=await readSpelling(said);}catch(e){err=checkError(e);}
   if(!R||S.screen!=='ask'||cur()!==w||(R.i+':'+R.attempt)!==tok) return;
   R.read=read;
-  const v=judgeRead(read,w.w,true);
+  let v=judgeRead(read,w.w);
+  /* Safari hands back "CLOSE" whether the child spelled it out or just said it,
+     so the words themselves can't tell those apart. How long it took can:
+     naming five letters takes seconds, saying the word takes a moment. */
+  if(v==='ok'&&saidRatherThanSpelled()){
+    v='unsure'; err='That sounded like the whole word rather than the letters.';
+  }
   if(v==='unsure'){R.err=err; R.phase='unsure'; render(); window.scrollTo(0,0); return;}
   mark(v==='ok');
+}
+/* Tunable: raise SAID_MS if a quick speller keeps being stopped, lower it if
+   saying the word slips through. */
+const SAID_MS=1200;
+function saidRatherThanSpelled(){
+  const spoken=(R.lastHeard&&R.listenStart)?(R.lastHeard-R.listenStart):0;
+  const oneChunk=!/[\s.\-]/.test((R.heard||'').trim());
+  return oneChunk&&spoken>0&&spoken<SAID_MS;
 }
 
 /* ---------- handwriting check (Claude reads what the child wrote) ----------
@@ -1014,7 +1030,7 @@ function startRound(){
   const k=kid();
   const words=S.game==='beast'?beastPool(k).words:pickRound(k.words,S.bank,20);
   if(!words.length) return;
-  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],read:null,err:'',flipped:false,applied:null,heard:'',listening:false,
+  R={words,n:words.length,i:0,score:0,attempt:0,verdict:null,reveal:false,speaking:false,quit:false,missed:[],read:null,err:'',flipped:false,applied:null,heard:'',listening:false,listenStart:0,lastHeard:0,
      game:S.game,phase:null,time:0,shot:null,strokes:[],modes:S.game==='beast'?words.map(()=>Math.random()<0.5?'say':'write'):[]};
   window.scrollTo(0,0); askCurrent();
 }
