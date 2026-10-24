@@ -307,7 +307,7 @@ function scoreMessage(s,n){
 const $app=document.getElementById('app');
 const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),game:'say',
   adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,addCat:'core',
-  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,canImg:false,focus:null};
+  msg:null,save:'idle',saveErr:'',gen:null,canGen:false,canImg:false,test:null,focus:null};
 let R=null, DB=null, SAMPLE=null, SPK=0, pad=null, timerIv=null;
 const LS_KEY='sbee.v1';
 
@@ -480,8 +480,10 @@ function checkError(e){
     return 'Claude can’t read the writing on this device, so a grown-up can mark it.';
   if(c==='rate_limited') return 'Claude is busy just now, so a grown-up can mark this one.';
   if(c==='image_rejected') return 'That picture couldn’t be read, so a grown-up can mark this one.';
-  return 'The check didn’t come back, so a grown-up can mark this one.';
+  /* the detail matters: without it every failure looks the same and can't be fixed */
+  return 'The check didn’t come back'+(e&&e.detail?' — '+e.detail:'')+', so a grown-up can mark this one.';
 }
+const proxyHost=()=>{try{return new URL(PROXY.url).host;}catch(e){return PROXY.url;}};
 async function readHandwriting(canvas){
   if(SAMPLE&&S.canImg){
     const blob=await canvasBlob(canvas);
@@ -489,12 +491,44 @@ async function readHandwriting(canvas){
       {images:[blob],modelTier:SET.check==='careful'?'default':'quick',cache:false}));
   }
   if(!window.claude&&PROXY.url){
-    const r=await fetch(PROXY.url,{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({secret:PROXY.secret,image:canvas.toDataURL('image/png')})});
-    if(!r.ok) throw {code:'upstream_error',message:'proxy '+r.status};
-    return parseRead(await r.json());
+    let r;
+    try{
+      r=await fetch(PROXY.url,{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({secret:PROXY.secret,careful:SET.check==='careful',
+          image:canvas.toDataURL('image/png')})});
+    }catch(e){
+      /* a blocked domain, no network, or a refused CORS preflight all land here */
+      throw {code:'network',detail:'couldn’t reach '+proxyHost()+' from this device'};
+    }
+    let body=null; try{body=await r.json();}catch(e){}
+    if(!r.ok) throw {code:'upstream_error',
+      detail:proxyHost()+' replied '+r.status+(body&&body.error?' ('+body.error+')':'')};
+    const read=parseRead(body);
+    if(!read) throw {code:'upstream_error',detail:proxyHost()+' sent an answer that could not be read'};
+    return read;
   }
   throw {code:'images_unavailable',message:'no checker available'};
+}
+/* Draws a known word and runs it through whichever checker this device uses,
+   so a grown-up can see on the iPad itself whether the pipe works. */
+async function testChecker(){
+  S.test={running:true,msg:'Testing…'}; render();
+  let msg;
+  try{
+    const o=document.createElement('canvas'); o.width=600; o.height=200;
+    const x=o.getContext('2d');
+    x.fillStyle='#fffdf7'; x.fillRect(0,0,600,200);
+    x.fillStyle='#1b2240'; x.font='bold 120px sans-serif'; x.textBaseline='middle';
+    x.fillText('cat',60,110);
+    const r=await readHandwriting(o);
+    msg=(r&&r.letters)
+      ? (r.letters==='CAT'?'Working — read “CAT” as expected ('+r.confidence+').'
+                          :'Answered, but read “'+r.letters+'” instead of CAT ('+r.confidence+').')
+      : 'Answered, but read no letters at all.';
+  }catch(e){
+    msg='Failed: '+((e&&(e.detail||e.message))||(e&&e.code)||'unknown error');
+  }
+  S.test={running:false,msg}; render();
 }
 async function doneWriting(){
   if(!pad||!pad.strokes.length){R.err='Write the word first, then tap “I’m done”.';render();return;}
@@ -772,13 +806,18 @@ function adminSettings(){
   }
   h+='</section>';
   h+='<section class="panel"><h3>Handwriting check</h3>';
-  if(S.canImg){
-    h+='<p class="muted small">Claude reads what the child writes on the screen and marks it. Quick is nearly instant; Careful uses a stronger model and takes a few seconds longer, which helps if neat writing is being misread.</p>'+
+  if(canCheck()){
+    h+='<p class="muted small">'+(SAMPLE&&S.canImg
+      ? 'This page is open from your Claude account, so Claude reads the writing directly.'
+      : 'The writing is sent to your own checker at '+esc(proxyHost())+' to be read.')+'</p>'+
+    '<p class="muted small">Quick is nearly instant; Careful uses a stronger model and takes a few seconds longer, which helps if neat writing is being misread.</p>'+
     '<div class="seg" role="group" aria-label="How carefully to read">'+[['quick','Quick'],['careful','Careful']].map(o=>
       '<button class="chip" data-act="checkmode" data-id="'+o[0]+'" aria-pressed="'+(SET.check===o[0])+'">'+o[1]+'</button>').join('')+'</div>'+
-    '<p class="muted small">When Claude can’t make out a letter it asks a grown-up instead of guessing, and every result can be changed afterwards.</p>';
+    '<div class="flex"><button class="btn btn-ghost sm" data-act="checktest"'+(S.test&&S.test.running?' disabled':'')+'>Test the checker</button>'+
+    '<span class="muted small" aria-live="polite" style="flex:1;min-width:180px">'+esc(S.test?S.test.msg:'')+'</span></div>'+
+    '<p class="muted small">When a letter can’t be made out, the app asks a grown-up instead of guessing, and every result can be changed afterwards.</p>';
   }else{
-    h+='<p class="note">This copy of the page can’t have Claude read the handwriting, so a grown-up marks each written word. Opening the page from your Claude account turns the automatic check back on.</p>';
+    h+='<p class="note">This copy of the page has no checker, so a grown-up marks each written word.</p>';
   }
   h+='</section>';
   h+='<section class="panel"><h3>Where your lists are kept</h3><p>'+(S.mode==='local'?'This page isn’t signed in to Claude, so your lists are kept on this device only. Open it from your Claude account to keep them safely.':'Your lists are saved to your Claude account, so they are the same on any device you open this page on.')+'</p></section>';
@@ -957,7 +996,8 @@ function act(a,t){
     case 'done-write':doneWriting();break;
     case 'try-again':R.phase='write';R.err='';R.read=null;R.shot=null;R.strokes.length=0;render();startTimer(R.time);break;
     case 'flip':flipVerdict();break;
-    case 'checkmode':SET.check=(id==='careful'?'careful':'quick');saveSet();render();break;
+    case 'checkmode':SET.check=(id==='careful'?'careful':'quick');saveSet();S.test=null;render();break;
+    case 'checktest':testChecker();break;
     case 'retry':retryWord();break;
     case 'next':nextWord();break;
     case 'quit':R.quit=true;render();break;
