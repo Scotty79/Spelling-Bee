@@ -315,7 +315,7 @@ function scoreMessage(s,n){
 /* ---------- app state ---------- */
 const $app=document.getElementById('app');
 const S={kids:[],loading:true,loadError:null,mode:'cloud',screen:'home',kidId:null,bank:new Set(),game:'say',
-  adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,addCat:'core',
+  adminKid:null,adminTab:'words',filter:'all',editId:null,delId:null,delKid:null,delAll:false,delAllTally:false,addCat:'core',
   msg:null,save:'idle',saveErr:'',gen:null,canGen:false,canImg:false,test:null,micTap:false,micBlocked:false,focus:null};
 let R=null, DB=null, SAMPLE=null, SPK=0, pad=null, timerIv=null;
 const LS_KEY='sbee.v1';
@@ -785,13 +785,19 @@ function gameBar(){
   return '<div class="bar"><button class="iconbtn" data-act="quit">'+ic('back')+' Quit</button><span class="pill">Word '+(R.i+1)+' of '+R.n+'</span>'+timer+
   '<span class="pill score" role="status" aria-label="Score '+R.score+' out of '+R.n+'">Score '+R.score+'/'+R.n+'</span></div>';
 }
+/* The backdrop is deliberately not tappable: a stray touch mid-round
+   shouldn't dismiss a confirmation. */
+function modalBox(id,title,body,actions){
+  return '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="'+id+'">'+
+  '<div class="box"><h3 id="'+id+'">'+title+'</h3>'+body+
+  '<div class="two">'+actions+'</div></div></div>';
+}
 function quitPanel(){
   if(!R.quit) return '';
-  return '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="quit-title">'+
-  '<div class="box"><h3 id="quit-title">Leave this round?</h3>'+
-  '<p class="muted">You’ll go back to the menu. Words already marked stay in the tricky list.</p>'+
-  '<div class="two"><button class="btn btn-primary" data-act="quit-yes">Leave</button>'+
-  '<button class="btn btn-ghost" data-act="quit-no">Keep going</button></div></div></div>';
+  return modalBox('quit-title','Leave this round?',
+    '<p class="muted">You’ll go back to the menu. Words already marked stay in the tricky list.</p>',
+    '<button class="btn btn-primary" data-act="quit-yes">Leave</button>'+
+    '<button class="btn btn-ghost" data-act="quit-no">Keep going</button>');
 }
 function viewAsk(){ return mode()==='write'?viewAskWrite():viewAskSay(); }
 function graderPanel(){
@@ -949,7 +955,22 @@ function adminWords(k){
   h+='<div class="seg" role="group" aria-label="Filter by bank"><button class="chip" data-act="filter" data-id="all" aria-pressed="'+(S.filter==='all')+'">All <small>'+counts.all+'</small></button>'+
     CATS.map(c=>'<button class="chip" data-act="filter" data-id="'+c.id+'" aria-pressed="'+(S.filter===c.id)+'">'+c.label+' <small>'+counts[c.id]+'</small></button>').join('')+'</div>';
   h+=rows.length?'<ul class="list">'+rows.map(w=>wordRow(w)).join('')+'</ul>':'<p class="empty">No words here yet.</p>';
+  /* understated, because it is the one irreversible control on this screen */
+  if(k.words.length) h+='<div class="flex end"><button class="linkbtn" data-act="delall">Delete all '+k.words.length+' words</button></div>';
+  h+=deleteAllModal(k);
   return h;
+}
+function deleteAllModal(k){
+  if(!S.delAll||!k.words.length) return '';
+  const n=k.words.length;
+  return modalBox('delall-title','Delete all '+n+' word'+(n===1?'':'s')+'?',
+    '<p class="muted">Every word on '+esc(k.name)+'’s list will be removed. This can’t be undone, so make sure you still have the CSV you imported.</p>'+
+    '<button class="chip" data-act="delall-tally" aria-pressed="'+S.delAllTally+'" style="align-self:flex-start">Also clear tricky-word marks</button>'+
+    '<p class="muted small">'+(S.delAllTally
+      ? 'Their record of past mistakes will be wiped as well.'
+      : 'Their tricky-word marks are kept, so re-importing the same list keeps their history.')+'</p>',
+    '<button class="btn btn-warn" data-act="delall-yes">Delete all</button>'+
+    '<button class="btn btn-ghost" data-act="delall-no">Keep them</button>');
 }
 function genText(missing){
   const g=S.gen;
@@ -1206,13 +1227,23 @@ function act(a,t){
     case 'quit':R.quit=true;render();break;
     case 'quit-no':R.quit=false;render();break;
     case 'quit-yes':stopSpeech();go('kid');break;
-    case 'akid':S.adminKid=id;S.editId=null;S.delId=null;S.filter='all';S.msg=null;S.gen=null;render();break;
-    case 'atab':S.adminTab=id;S.msg=null;render();break;
+    case 'akid':S.adminKid=id;S.editId=null;S.delId=null;S.delAll=false;S.filter='all';S.msg=null;S.gen=null;render();break;
+    case 'atab':S.adminTab=id;S.delAll=false;S.msg=null;render();break;
     case 'filter':S.filter=id;render();break;
     case 'edit':S.editId=id;S.delId=null;S.msg=null;S.focus='e-w';render();break;
     case 'cancel':S.editId=null;S.msg=null;render();break;
     case 'del':S.delId=id;S.editId=null;render();break;
     case 'del-no':S.delId=null;render();break;
+    case 'delall':S.delAll=true;S.delAllTally=false;S.editId=null;S.delId=null;S.msg=null;render();break;
+    case 'delall-no':S.delAll=false;S.delAllTally=false;render();break;
+    case 'delall-tally':S.delAllTally=!S.delAllTally;render();break;
+    case 'delall-yes':{
+      const k=aKid(); const n=k.words.length; const alsoTally=S.delAllTally;
+      k.words=[]; if(alsoTally) k.tally={};
+      S.delAll=false; S.delAllTally=false; S.editId=null; S.delId=null; S.filter='all'; S.gen=null;
+      queueSave(k);
+      flash('Deleted '+n+' word'+(n===1?'':'s')+' from '+k.name+'’s list.'+(alsoTally?' Tricky-word marks cleared too.':''));
+      render(); break;}
     case 'del-yes':{const k=aKid();k.words=k.words.filter(w=>w.id!==id);S.delId=null;queueSave(k);render();break;}
     case 'suggest':suggestOne(t);break;
     case 'gen':genMissing();break;
