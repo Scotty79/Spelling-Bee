@@ -86,7 +86,17 @@ h3{font-size:1.15rem;font-weight:600}
 .brand{font:700 1rem var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .kidcard{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 18px;min-height:82px;border-radius:26px;background:var(--surface);border:2px solid var(--line);color:inherit}
 .kidcard b{display:block;font:700 1.6rem var(--display)}
-.avatar{width:58px;height:58px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font:700 1.8rem var(--display);flex:none}
+.avatar{width:58px;height:58px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font:700 1.8rem var(--display);flex:none;overflow:hidden}
+.avatar svg{width:100%;height:100%;display:block}
+.avatar.xl{width:96px;height:96px;font-size:2.8rem}
+/* a tidy 3x2 at any width, rather than five and a lonely sixth */
+.avgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.avpick{padding:8px;border-radius:22px;border:3px solid transparent;background:var(--surface);display:grid;place-items:center;gap:4px}
+.avpick svg{width:100%;height:auto;max-width:132px;display:block}
+.avpick span{font:600 1rem var(--display);color:var(--muted)}
+.avpick[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.avpick[aria-pressed="true"] span{color:var(--accent-deep)}
+.profhead{display:flex;align-items:center;gap:14px}
 
 .tile{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px 18px;min-height:88px;border-radius:24px;border:0;background:var(--accent);color:var(--on-accent)}
 .tile b{display:block;font:700 1.5rem var(--display)}
@@ -198,6 +208,117 @@ details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="av-fox" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="50" fill="#FFD9A0"/>
+    <g stroke="#43291A" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M23 44 L26 12 L48 28 Z" fill="#EF8B3C"/>
+      <path d="M77 44 L74 12 L52 28 Z" fill="#EF8B3C"/>
+      <path d="M30 20 L32 34 L41 27 Z" fill="#FFE7D2" stroke="none"/>
+      <path d="M70 20 L68 34 L59 27 Z" fill="#FFE7D2" stroke="none"/>
+      <path d="M20 48 Q20 24 50 24 Q80 24 80 48 Q80 68 63 74 L50 86 L37 74 Q20 68 20 48 Z" fill="#EF8B3C"/>
+      <ellipse cx="50" cy="68" rx="15" ry="11" fill="#FFF3E4"/>
+      <circle cx="37" cy="48" r="8" fill="#fff"/>
+      <circle cx="63" cy="48" r="8" fill="#fff"/>
+      <circle cx="37" cy="48" r="4.6" fill="#2A2018" stroke="none"/>
+      <circle cx="63" cy="48" r="4.6" fill="#2A2018" stroke="none"/>
+      <circle cx="38.8" cy="46" r="1.7" fill="#fff" stroke="none"/>
+      <circle cx="64.8" cy="46" r="1.7" fill="#fff" stroke="none"/>
+      <path d="M44 63 Q50 59 56 63 Q53 67 50 67 Q47 67 44 63 Z" fill="#43291A"/>
+      <path d="M50 67 L50 71 M50 71 Q44 75 41 70 M50 71 Q56 75 59 70" fill="none" stroke-width="2.4"/>
+      <ellipse cx="27" cy="60" rx="5" ry="3.4" fill="#F4A9A0" stroke="none" opacity=".85"/>
+      <ellipse cx="73" cy="60" rx="5" ry="3.4" fill="#F4A9A0" stroke="none" opacity=".85"/>
+    </g>
+  </symbol>
+  <symbol id="av-panda" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="50" fill="#CFE9F5"/>
+    <g stroke="#2E2A33" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <circle cx="24" cy="26" r="11" fill="#3A3540"/>
+      <circle cx="76" cy="26" r="11" fill="#3A3540"/>
+      <ellipse cx="50" cy="54" rx="32" ry="29" fill="#FFFDF8"/>
+      <ellipse cx="36" cy="49" rx="9.5" ry="11" fill="#3A3540" transform="rotate(-14 36 49)"/>
+      <ellipse cx="64" cy="49" rx="9.5" ry="11" fill="#3A3540" transform="rotate(14 64 49)"/>
+      <circle cx="36.5" cy="50" r="4.4" fill="#fff" stroke="none"/>
+      <circle cx="63.5" cy="50" r="4.4" fill="#fff" stroke="none"/>
+      <circle cx="36.5" cy="50" r="2.4" fill="#201C26" stroke="none"/>
+      <circle cx="63.5" cy="50" r="2.4" fill="#201C26" stroke="none"/>
+      <ellipse cx="50" cy="65" rx="5.2" ry="3.8" fill="#2E2A33"/>
+      <path d="M50 69 L50 72 M50 72 Q44 77 40 71 M50 72 Q56 77 60 71" fill="none" stroke-width="2.4"/>
+      <ellipse cx="24" cy="63" rx="5" ry="3.4" fill="#F7A8B8" stroke="none" opacity=".8"/>
+      <ellipse cx="76" cy="63" rx="5" ry="3.4" fill="#F7A8B8" stroke="none" opacity=".8"/>
+    </g>
+  </symbol>
+  <symbol id="av-frog" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="50" fill="#D6F2C0"/>
+    <g stroke="#27471F" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <ellipse cx="50" cy="62" rx="33" ry="27" fill="#7CC457"/>
+      <circle cx="30" cy="30" r="15" fill="#8FD267"/>
+      <circle cx="70" cy="30" r="15" fill="#8FD267"/>
+      <circle cx="30" cy="31" r="9" fill="#FFFDF8"/>
+      <circle cx="70" cy="31" r="9" fill="#FFFDF8"/>
+      <circle cx="31.5" cy="33" r="5" fill="#241E16" stroke="none"/>
+      <circle cx="67" cy="29" r="5" fill="#241E16" stroke="none"/>
+      <circle cx="33" cy="31" r="1.8" fill="#fff" stroke="none"/>
+      <circle cx="68.5" cy="27" r="1.8" fill="#fff" stroke="none"/>
+      <path d="M26 62 Q50 82 74 62" fill="none" stroke-width="3.4"/>
+      <circle cx="37" cy="52" r="2" fill="#5CA33C" stroke="none"/>
+      <circle cx="62" cy="55" r="2.6" fill="#5CA33C" stroke="none"/>
+      <circle cx="50" cy="47" r="1.6" fill="#5CA33C" stroke="none"/>
+      <ellipse cx="24" cy="66" rx="5" ry="3.4" fill="#F6938C" stroke="none" opacity=".75"/>
+      <ellipse cx="76" cy="66" rx="5" ry="3.4" fill="#F6938C" stroke="none" opacity=".75"/>
+    </g>
+  </symbol>
+  <symbol id="av-dino" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="50" fill="#D9F0EC"/>
+    <g stroke="#1F4A44" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M24 36 L30 18 L38 32 L50 14 L62 32 L70 18 L76 36 Z" fill="#6FD9BE"/>
+      <path d="M18 54 Q18 28 50 28 Q82 28 82 54 Q82 80 50 80 Q18 80 18 54 Z" fill="#4FC2A8"/>
+      <circle cx="36" cy="46" r="11" fill="#FFFDF8"/>
+      <circle cx="64" cy="47" r="8" fill="#FFFDF8"/>
+      <circle cx="37" cy="47" r="5.6" fill="#1C2522" stroke="none"/>
+      <circle cx="63" cy="48" r="4.2" fill="#1C2522" stroke="none"/>
+      <circle cx="39" cy="44.5" r="2" fill="#fff" stroke="none"/>
+      <circle cx="64.6" cy="46" r="1.6" fill="#fff" stroke="none"/>
+      <path d="M30 62 Q50 78 70 62 Z" fill="#B0463F"/>
+      <path d="M38 65 L41 60 L44 65 Z M56 65 L59 60 L62 65 Z" fill="#FFFDF8" stroke="none"/>
+      <circle cx="30" cy="40" r="2.2" fill="#3DA68E" stroke="none"/>
+      <circle cx="70" cy="38" r="2.2" fill="#3DA68E" stroke="none"/>
+    </g>
+  </symbol>
+  <symbol id="av-owl" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="50" fill="#FFE4C4"/>
+    <g stroke="#4A3350" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M22 40 L24 16 L42 26 Z" fill="#8E72C6"/>
+      <path d="M78 40 L76 16 L58 26 Z" fill="#8E72C6"/>
+      <path d="M20 50 Q20 24 50 24 Q80 24 80 50 Q80 82 50 82 Q20 82 20 50 Z" fill="#8E72C6"/>
+      <path d="M50 62 Q28 62 28 44 Q28 30 50 30 Q72 30 72 44 Q72 62 50 62 Z" fill="#F3EDFC" stroke="none"/>
+      <circle cx="38" cy="44" r="11" fill="#FFFDF8"/>
+      <circle cx="62" cy="44" r="11" fill="#FFFDF8"/>
+      <circle cx="38" cy="44" r="5.6" fill="#2B2033" stroke="none"/>
+      <circle cx="62" cy="44" r="5.6" fill="#2B2033" stroke="none"/>
+      <circle cx="40" cy="41.6" r="2.1" fill="#fff" stroke="none"/>
+      <circle cx="64" cy="41.6" r="2.1" fill="#fff" stroke="none"/>
+      <path d="M50 50 L45 58 L55 58 Z" fill="#F2A33C"/>
+      <path d="M38 66 Q50 82 62 66" fill="#C9B6ED" stroke-width="2.4"/>
+      <path d="M26 58 Q22 66 28 70 M74 58 Q78 66 72 70" fill="none" stroke-width="2.6"/>
+    </g>
+  </symbol>
+  <symbol id="av-monster" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="50" fill="#FFD6E8"/>
+    <g stroke="#3C2150" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M30 26 Q26 10 16 8" fill="none" stroke-width="3.4"/>
+      <path d="M70 26 Q74 10 84 8" fill="none" stroke-width="3.4"/>
+      <circle cx="15" cy="7" r="5" fill="#F2C94C"/>
+      <circle cx="85" cy="7" r="5" fill="#F2C94C"/>
+      <path d="M18 52 Q18 24 50 24 Q82 24 82 52 Q82 84 50 84 Q18 84 18 52 Z" fill="#B57BE8"/>
+      <circle cx="50" cy="44" r="17" fill="#FFFDF8"/>
+      <circle cx="50" cy="45" r="8.5" fill="#2B2033" stroke="none"/>
+      <circle cx="53.5" cy="41" r="3.2" fill="#fff" stroke="none"/>
+      <path d="M32 64 Q50 82 68 64 Z" fill="#8B3F6B"/>
+      <path d="M42 67 L45 61 L48 67 Z" fill="#FFFDF8" stroke="none"/>
+      <ellipse cx="26" cy="62" rx="5" ry="3.4" fill="#F27BA8" stroke="none" opacity=".8"/>
+      <ellipse cx="74" cy="62" rx="5" ry="3.4" fill="#F27BA8" stroke="none" opacity=".8"/>
+    </g>
+  </symbol>
 </svg>
 
 <div id="app"></div>
@@ -207,6 +328,12 @@ details.panel>summary{font:600 1.05rem var(--display);cursor:pointer;min-height:
 'use strict';
 
 /* ==PURE START== */
+/* Six characters to pick from. Drawn into the sprite above, so there are no
+   image files to host. */
+const AVATARS=[
+  {id:'fox',label:'Fox'},{id:'panda',label:'Panda'},{id:'frog',label:'Frog'},
+  {id:'dino',label:'Dino'},{id:'owl',label:'Owl'},{id:'monster',label:'Monster'}];
+const AVATAR_IDS=AVATARS.map(a=>a.id);
 const CATS=[{id:'core',label:'Core'},{id:'easy',label:'Easy'},{id:'medium',label:'Medium'},{id:'challenging',label:'Challenging'}];
 const CAT_IDS=CATS.map(c=>c.id);
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -332,9 +459,10 @@ function normKid(id,d){
     const o={id:String(w.id||uid()),w:w.w,c:CAT_IDS.includes(w.c)?w.c:'core',s:typeof w.s==='string'?w.s:''};
     if(w.x) o.x=true; return o;});
   const tally={}; if(d.tally&&typeof d.tally==='object') for(const key of Object.keys(d.tally)){const n=Number(d.tally[key]); if(n>0) tally[key]=Math.floor(n);}
-  return {id,name:String(d.name||id),order:Number(d.order)||0,words,tally};
+  const av=AVATAR_IDS.includes(d.av)?d.av:'';
+  return {id,name:String(d.name||id),order:Number(d.order)||0,av,words,tally};
 }
-function kidDoc(k){return {name:k.name,order:k.order,words:k.words.map(w=>{const o={id:w.id,w:w.w,c:w.c,s:w.s};if(w.x)o.x=true;return o;}),tally:k.tally};}
+function kidDoc(k){return {name:k.name,order:k.order,av:k.av||'',words:k.words.map(w=>{const o={id:w.id,w:w.w,c:w.c,s:w.s};if(w.x)o.x=true;return o;}),tally:k.tally};}
 function loadLocal(){
   try{const j=JSON.parse(localStorage.getItem(LS_KEY)||'null');if(j&&Array.isArray(j.kids)) return j.kids.map(k=>normKid(String(k.id||slug(k.name)),k)).sort((a,b)=>a.order-b.order);}catch(e){}
   return [];
@@ -697,6 +825,10 @@ async function doneWriting(){
 const kid=()=>S.kids.find(k=>k.id===S.kidId);
 const aKid=()=>S.kids.find(k=>k.id===S.adminKid)||S.kids[0];
 const ic=(n,cls)=>'<svg class="ic '+(cls||'')+'" aria-hidden="true"><use href="#i-'+n+'"/></svg>';
+/* falls back to the child's initial until they have picked a character */
+const avatar=(k,cls)=>'<span class="avatar '+(cls||'')+'">'+(k.av
+  ? '<svg viewBox="0 0 100 100" aria-hidden="true"><use href="#av-'+esc(k.av)+'"/></svg>'
+  : esc(k.name.charAt(0).toUpperCase()))+'</span>';
 const catLabel=id=>(CATS.find(c=>c.id===id)||{label:id}).label;
 const cur=()=>R.words[R.i];
 const GAMES={
@@ -730,7 +862,7 @@ function viewHome(){
   }else{
     body='<h2>Who’s spelling today?</h2>'+S.kids.map(k=>{
       const t=trickyList(k).length;
-      return '<button class="kidcard" data-act="pick" data-id="'+esc(k.id)+'"><span class="avatar">'+esc(k.name.charAt(0).toUpperCase())+'</span><span><b>'+esc(k.name)+'</b><span class="muted">'+k.words.length+' words'+(t?' · '+t+' tricky':'')+'</span></span></button>';
+      return '<button class="kidcard" data-act="pick" data-id="'+esc(k.id)+'">'+avatar(k)+'<span><b>'+esc(k.name)+'</b><span class="muted">'+k.words.length+' words'+(t?' · '+t+' tricky':'')+'</span></span></button>';
     }).join('');
   }
   return '<div class="wrap stack"><p class="brand">Spelling Bee</p>'+body+'<div><button class="linkbtn" data-act="admin">Grown-ups</button></div></div>';
@@ -738,11 +870,23 @@ function viewHome(){
 function viewKid(){
   const k=kid(), t=trickyList(k).length;
   return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="home">'+ic('back')+' Back</button></div>'+
-  '<h1>Hi, '+esc(k.name)+'!</h1>'+
+  '<button class="profhead" data-act="profile" style="background:none;border:0;padding:0;text-align:left">'+
+  avatar(k)+'<span><h1>Hi, '+esc(k.name)+'!</h1>'+
+  '<span class="muted small">'+(k.av?'Tap to change your character':'Tap to pick your character')+'</span></span></button>'+
   '<button class="tile" data-game="say" data-act="game-say"><span class="tile-ic">'+ic('say','fill')+'</span><span><b>Say to Spell</b><small>Hear the word, then spell it out loud</small></span></button>'+
   '<button class="tile" data-game="write" data-act="game-write"><span class="tile-ic">'+ic('pen')+'</span><span><b>Write to Spell</b><small>Hear the word, then write it on the screen</small></span></button>'+
   '<button class="tile" data-game="beast" data-act="game-beast"><span class="tile-ic">'+ic('bolt','fill')+'</span><span><b>Beast Mode</b><small>Your tricky words, speaking and writing</small></span></button>'+
   '<button class="btn btn-ghost" data-act="tricky" style="align-self:flex-start">My tricky words'+(t?' ('+t+')':'')+'</button></div>';
+}
+function viewProfile(){
+  const k=kid();
+  return '<div class="wrap stack"><div class="bar"><button class="iconbtn" data-act="back-kid">'+ic('back')+' Back</button></div>'+
+  '<div class="profhead">'+avatar(k,'xl')+'<div><h1>'+esc(k.name)+'</h1>'+
+  '<p class="muted">Pick the character you want.</p></div></div>'+
+  '<div class="avgrid" role="group" aria-label="Choose a character">'+AVATARS.map(a=>
+    '<button class="avpick" data-act="avatar" data-id="'+a.id+'" aria-pressed="'+(k.av===a.id)+'" aria-label="'+a.label+'">'+
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><use href="#av-'+a.id+'"/></svg><span>'+a.label+'</span></button>').join('')+'</div>'+
+  '<button class="btn btn-primary block" data-act="back-kid">Done</button></div>';
 }
 function trickyBlock(k,canEdit){
   const list=trickyList(k);
@@ -1041,6 +1185,7 @@ function render(){
   else{
     switch(S.screen){
       case 'kid':h=viewKid();break; case 'tricky':h=viewTricky();break; case 'setup':h=viewSetup();break;
+      case 'profile':h=viewProfile();break;
       case 'ask':h=viewAsk();break; case 'result':h=viewResult();break; case 'done':h=viewDone();break;
       case 'admin':h=viewAdmin();break; default:h=viewHome();
     }
@@ -1200,6 +1345,11 @@ function act(a,t){
     case 'home':go('home');break;
     case 'back-kid':go('kid');break;
     case 'tricky':go('tricky');break;
+    case 'profile':go('profile');break;
+    case 'avatar':{
+      const k=kid(); if(!k||!AVATAR_IDS.includes(id)) break;
+      k.av=(k.av===id)?'':id;   /* tapping the chosen one again goes back to the initial */
+      queueSave(k); render(); break;}
     case 'admin':S.adminKid=S.adminKid||(S.kids[0]&&S.kids[0].id);go('admin');break;
     case 'reload':initStore();break;
     case 'use-local':S.mode='local';S.loadError=null;S.kids=loadLocal();render();break;
